@@ -1,1 +1,1 @@
-# gpu-sparse Sparse-Matrix dense-Vector multiplication (SpMV) 
+# Sparse-Matrix dense-Vector multiplication (SpMV) 
