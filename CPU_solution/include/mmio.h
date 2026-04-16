@@ -127,6 +127,8 @@ int mm_read_mtx_crd_entry(FILE *f, int *I, int *J, double *real, double *img,
 
 int mm_read_unsymmetric_sparse(const char *fname, int *M_, int *N_, int *nz_,
                 double **val_, int **I_, int **J_);
+int mm_read_mtx_crd(char *fname, int *M, int *N, int *nz, int **I, int **J, 
+        double **val, MM_typecode *matcode); //added by me to be used properly with the name of the file .mtx. 
 
 
 
