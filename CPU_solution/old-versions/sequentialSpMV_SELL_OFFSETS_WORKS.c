@@ -50,7 +50,7 @@ void computeSpmvCOO(double * res, COOvalue *  cooArray, double * vect, int nnz, 
 	}
 
 
-void computeSpmvCSR(double * res, COOvalue *  cooArraySorted, double * vect, int nnz, int rows, int * row_ptr) {
+void computeSpmvCSR(double * res, COOvalue *  cooArraySorted, double * vect, int nnz, int rows) {
 	int * occurenceArray = calloc(rows, sizeof(int));
 	printf("sorting the arrys : \n");
 	for (int i = 0; i < nnz;i++) {
@@ -71,13 +71,14 @@ void computeSpmvCSR(double * res, COOvalue *  cooArraySorted, double * vect, int
 
 	
 	//prefix sum 
+	int * row_ptr = calloc(rows+1,sizeof(int)); 
 	row_ptr[0] = 0; 
 	for (int j = 1; j <rows+1;j++) {
-		row_ptr[j] = (row_ptr[j-1]) + occurenceArray[j-1];
-		printf("prefix sum  %d : %d \n",j, (row_ptr[j]));
+		row_ptr[j] = row_ptr[j-1] + occurenceArray[j-1];
+		printf("prefix sum  %d : %d \n",j, row_ptr[j]);
 	}	
 	free(occurenceArray);	
-	printf("final value of prefix-sum : %d \n",(row_ptr[rows]));
+	printf("final value of prefix-sum : %d \n",row_ptr[rows]);
 
 	//csr to matrix + result for ones
 	for (int i = 0;i<rows;i++) {
@@ -92,124 +93,171 @@ void computeSpmvCSR(double * res, COOvalue *  cooArraySorted, double * vect, int
     	printf("y[%d] = %.2f\n", i, res[i]);
 	}
 
+	free(row_ptr);
 }
 
-void computeSpmvSELL(int nbSlices,int nnz, COOvalue * cooArray, int rows, int cols, int * row_ptr) {
+void computeSpmvSELL(int nbSlices,int nnz, COOvalue * cooArray, int rows, int cols) {
 
-    // number of rows per slice
-    int rowsPerSlice = (rows + nbSlices - 1) / nbSlices;
-
-    // ========================= STEP 1 : Using  CSR for SELL (sorted)  =========================
-    // (plus simple pour accéder aux nnz par ligne)
-
-    int *col_ind = (int *) calloc(nnz, sizeof(int));
-    double *val   = (double *) calloc(nnz, sizeof(double));
-    int *offset = (int *) calloc(rows, sizeof(int));
-    for (int i = 0; i < rows; i++) offset[i] = row_ptr[i];
-
-    for (int i = 0; i < nnz; i++) {
-        int r = cooArray[i].row;
-        int pos = offset[r]++;
-        col_ind[pos] = cooArray[i].col;
-        val[pos]     = cooArray[i].val;
-    }
-
-    free(offset);
-
-    // ========================= STEP 2 : compute slice_offsets =========================
-
-int *slice_offsets = (int *) calloc(nbSlices+1, sizeof(int));
-slice_offsets[0] = 0;
-
-for (int s = 0; s < nbSlices; s++) {
-
-    int start = s * rowsPerSlice;
-    int end   = start + rowsPerSlice;
-    if (end > rows) end = rows;
-
-    int max_nnz = 0;
-
-    // compute max nnz in slice (lignes réelles seulement)
-    for (int r = start; r < end; r++) {
-        int nnz_row = row_ptr[r+1] - row_ptr[r];
-        if (nnz_row > max_nnz)
-            max_nnz = nnz_row;
-    }
-
-    slice_offsets[s+1] = slice_offsets[s] + max_nnz * rowsPerSlice;
-
-    printf("slice %d : max_nnz=%d offset=%d\n",
-           s, max_nnz, slice_offsets[s]);
-}
-    // ========================= STEP 3 : allocate SELL =========================
+	//number of rows per slice computed 
+	int rowsPerSlice = !(rows%2)?(rows/nbSlices):((rows+1)/nbSlices); 
 	
-	int vectorSize = slice_offsets[nbSlices]; 
-	printf("vector size : %d \n",slice_offsets[nbSlices]);
-    int *column_indices = (int *) calloc(vectorSize, sizeof(int));
-    double *values_array = (double *) calloc(vectorSize, sizeof(double));
-   
 
-    // ========================= STEP 4 : fill SELL =========================
+	//construct the matrix by the cooArray 
+	double * matrix;
+	//in the case we have an even number of rows
+	if(rows%2 == 1) rows++;	
+	matrix = (double*) calloc((rows)*cols,sizeof(double));
+	
+	int i = 0, j = 0;
+	int rowCurrent = 0, colCurrent = 0;
+	int nnzLineMaxi = 0;
 
-    int pos = 0;
+	//printf("nb rows %d \n",rows);
 
-  for (int s = 0; s < nbSlices; s++) {
-
-    int start = s * rowsPerSlice;
-    int slice_start = slice_offsets[s];
-    int slice_end   = slice_offsets[s+1];
-
-    int pos = slice_start;
-
-    int max_nnz_slice = (slice_end - slice_start) / rowsPerSlice;
-
-    for (int k = 0; k < max_nnz_slice; k++) {
-
-        for (int i = 0; i < rowsPerSlice; i++) {
-
-            if (pos >= slice_end) {
-                printf("ERROR overflow slice %d\n", s);
-                exit(1);
-            }
-
-            int r = start + i;
-
-            if (r < rows) {
-                int row_nnz = row_ptr[r+1] - row_ptr[r];
-
-                if (k < row_nnz) {
-                    int idx = row_ptr[r] + k;
-                    values_array[pos] = val[idx];
-                    column_indices[pos] = col_ind[idx];
-                } else {
-                    values_array[pos] = 0.0;
-                    column_indices[pos] = -1;
-                }
-            } else {
-                values_array[pos] = 0.0;
-                column_indices[pos] = -1;
-            }
-
-            pos++;
-        }
-    }
-}    // ========================= DEBUG PRINT =========================
-
-    printf("SELL result:\n");
-    for (int i = 0; i < vectorSize; i++) {
-        printf("[%d] col=%d val=%.2f\n", i, column_indices[i], values_array[i]);
-    }
+	int * slice_offsets = (int *) calloc(nbSlices+1,sizeof(int));
+	int * column_indices;
+	double * values_array;
+	for (;i<nnz;i++) {
+		rowCurrent = cooArray[i].row;
+		colCurrent = cooArray[i].col; 
+		matrix[rowCurrent*cols+colCurrent] = cooArray[i].val;
+		printf("element (%d, %d) : %.2f\n",rowCurrent,colCurrent,matrix[rowCurrent*cols+colCurrent]); 
+	}
+	
 
 
-    // ========================= FREE =========================
+		
+	//compute the number of block 
 
-    //free(row_ptr);
-    free(col_ind);
-    free(val);
-    free(slice_offsets);
-    free(column_indices);
-    free(values_array);
-}
+	printf("rowsPerSlice : %d \n", rowsPerSlice);
+
+
+
+	//create the different slices 
+	//int nnzLineMaxi = 0;
+	int newBlock = 0;
+	float curElm = 0;
+	int counterNnz = 0;
+	int currentBlock = 1;
+	slice_offsets[0] = 0; 
+	
+	//compute the slice offsets array	
+	for (i = 0;i<rows;i++) {
+			//printf("row actu : %d \n",i);
+			//printf("nnzLinemaxi %d \n",nnzLineMaxi);
+			
+
+			counterNnz = 0;
+			for (j = 0;j<cols;j++) {
+				curElm = matrix[i*cols+j];
+				if (curElm != 0.0) {
+						counterNnz++; 
+						if (counterNnz > nnzLineMaxi){
+						//	printf("counternnz sup : %d (%d %d) \n",counterNnz,i,j);
+							nnzLineMaxi = counterNnz;	
+						}
+							
+					}
+			}
+
+			if (i != 0 && (i)%rowsPerSlice == 1) {
+				slice_offsets[currentBlock] = nnzLineMaxi*rowsPerSlice + slice_offsets[currentBlock-1];	
+			printf("bloc %d : %d (line %d), max -> %d \n",currentBlock,slice_offsets[currentBlock],i,nnzLineMaxi);
+				newBlock = 1;
+				nnzLineMaxi = 0;
+				currentBlock++;
+				
+			}
+			
+	}
+
+	int vectorSize = slice_offsets[nbSlices];
+
+	column_indices = (int*) calloc(vectorSize,sizeof(int));
+	values_array = (double*) calloc(vectorSize,sizeof(double));
+	printf("vectorSize of column and values arrays : %d \n", vectorSize);
+	int currSellIndx = 0;	
+	currentBlock = 1;
+	int blockSize = 0;
+	nnzLineMaxi = 0;
+	int nbNnz = 0;
+	int firstNnzLine = 0;
+	int startLine = 0,endLine = 0;
+	int nbelm = 0;
+	int nnzFound = 0;
+	//todo : remplacer par une boucle while
+	while (currSellIndx<vectorSize) {
+		blockSize = slice_offsets[currentBlock] - slice_offsets[currentBlock-1];
+		nnzLineMaxi = blockSize/rowsPerSlice;
+		nbelm = 0;
+		endLine = startLine+rowsPerSlice;
+		nnzFound = 0;
+		nbNnz = 0;
+		
+		firstNnzLine = endLine;
+		printf("end line : %d : \n",endLine);
+		for (int col = 0;col<cols && nbelm < blockSize;col++) {
+	
+			for (startLine=endLine-rowsPerSlice;startLine<endLine && nbelm < blockSize;startLine++) {
+
+				curElm = matrix[startLine*cols+col];
+				if (curElm != 0.0) {
+					if (!nnzFound) {
+						nnzFound = 1; 
+						firstNnzLine = startLine;
+					}	
+					column_indices[currSellIndx] = col;
+					nbNnz++;
+
+					values_array[currSellIndx++] = curElm;
+					nbelm++;
+				}
+				else {
+			
+					//todo ? rajouter nbNnz >= nnzLineMaxi	
+					if (nnzFound && firstNnzLine != startLine ){
+						 nbelm++;
+						 column_indices[currSellIndx] = -1.0;
+						values_array[currSellIndx++] = curElm;
+						}
+
+				}
+				//todo ? rajouter une autre condition (voir le if juste au dessus) 
+			}
+		}
+		startLine = endLine;
+		
+
+		currentBlock++;
+		//currSellIndx++;
+
+	}
+
+	printf("tableau final : \n"); 
+	for (int i = 0;i<vectorSize;i++) {
+		printf("column_indices[%d] = %d \n",i,column_indices[i]);
+		
+		printf("values_array[%d] = %.2f \n",i,values_array[i]);
+		puts("");
+	}
+
+
+	
+
+
+	
+	
+
+
+
+	free(slice_offsets);	
+
+	free(column_indices);
+	free(values_array);
+	
+	free(matrix);	
+} 
+
 
 
 int main(int argc, char *argv[]) {
@@ -312,16 +360,15 @@ int main(int argc, char *argv[]) {
 	computeSpmvCOO(cooRes,cooarray,ones,nnz,rows);
 
 	// spMV CSR  
-	int * row_ptr_array = (int *) calloc(rows+1,sizeof(int));;
 	qsort(cooarray,nnz,sizeof(COOvalue),compare);
 
 	double * csrRes = (double*) calloc(rows,sizeof(double));
-	computeSpmvCSR(csrRes,cooarray,ones,nnz,rows,row_ptr_array);
+	computeSpmvCSR(csrRes,cooarray,ones,nnz,rows);
 
 	//spMV SELL 
 	
 	//void computeSpmvSELL(int nbSlices, COOvalue * cooArray, int rows, int cols) {
-	computeSpmvSELL(3,nnz,cooarray,rows,cols,row_ptr_array);
+	computeSpmvSELL(3,nnz,cooarray,rows,cols);
 
 
 
@@ -344,7 +391,6 @@ int main(int argc, char *argv[]) {
 
 
     /* Note, free the memory */
-	free(row_ptr_array);
 	free(cooarray);	
 	free(cooRes); 
 	free(csrRes);
