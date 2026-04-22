@@ -94,8 +94,8 @@ void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * v
 
 }
 
-void computeSpmvSELL(int nbSlices,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr) {
-
+void computeSpmvSELL(int slizeSize,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr) {
+	int nbSlices = rows/slizeSize;
     // number of rows per slice
     int rowsPerSlice = (rows + nbSlices - 1) / nbSlices;
 
@@ -351,7 +351,7 @@ int main(int argc, char *argv[]) {
 	//spMV SELL 
 	
 	//void computeSpmvSELL(int nbSlices, COOvalue * cooArray, int rows, int cols) {
-	computeSpmvSELL(3,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array);
+	computeSpmvSELL(2,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array);
 
 
 
