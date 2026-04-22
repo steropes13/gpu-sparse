@@ -94,8 +94,9 @@ void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * v
 
 }
 
-void computeSpmvSELL(int slizeSize,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr) {
-	int nbSlices = rows/slizeSize;
+void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr,double * ones,double * res_array) {
+	int nbSlices = 0; 
+	nbSlices = (rows%2==0)?(rows/sliceSize):((rows+1)/sliceSize);
     // number of rows per slice
     int rowsPerSlice = (rows + nbSlices - 1) / nbSlices;
 
@@ -104,17 +105,17 @@ void computeSpmvSELL(int slizeSize,int nnz, int * rows_array,int * cols_array, d
 
     int *col_ind = (int *) calloc(nnz, sizeof(int));
     double *val   = (double *) calloc(nnz, sizeof(double));
-    int *offset = (int *) calloc(rows, sizeof(int));
-    for (int i = 0; i < rows; i++) offset[i] = row_ptr[i];
+    //int *offset = (int *) calloc(rows, sizeof(int));
+   // for (int i = 0; i < rows; i++) offset[i] = row_ptr[i];
 
     for (int i = 0; i < nnz; i++) {
         int r = rows_array[i];
-        int pos = offset[r]++;
-        col_ind[pos] = cols_array[i];
-        val[pos]     = vals_array[i];
+    //    int pos = offset[r]++;
+        col_ind[i] = cols_array[i];
+        val[i]     = vals_array[i];
     }
 
-    free(offset);
+   // free(offset);
 
     //compute slice_offsets 
 
@@ -197,13 +198,47 @@ void computeSpmvSELL(int slizeSize,int nnz, int * rows_array,int * cols_array, d
 
     printf("SELL result:\n");
     for (int i = 0; i < vectorSize; i++) {
-        printf("[%d] col=%d val=%.2f\n", i, column_indices[i], values_array[i]);
+        printf("[%d] col=%d val=%f\n", i, column_indices[i], values_array[i]);
     }
+	
+	printf("computation of the res : \n");
+	int rowActu = 0;
+	int columnActu = 0;
+	int valuesIndex = 0;
+	int start_line = 0, end_line = 0;
+	int start = 0;
+	for (int indexOffset = 1;indexOffset<nbSlices+1;indexOffset++) {
+				start_line = slice_offsets[indexOffset-1]/sliceSize; 
+
+				rowActu = start_line;
+				end_line = start_line + sliceSize - 1;
+				
+				//in the case the end_line is outside of the matrix due to the slice size
+				if (end_line >= rows) end_line = rows-1;
+				if (rowActu >= rows) rowActu = end_line-1;
+				printf("start_line : %d, end_line %d \n",rowActu,end_line);
+				for (int nnzBlock = 0;nnzBlock < slice_offsets[indexOffset] - slice_offsets[indexOffset-1];nnzBlock++) {
+					res_array[rowActu] += ones[cols_array[rowActu]]*values_array[valuesIndex]; 
+					
+					valuesIndex++;
+					rowActu++;
+					if (rowActu > end_line) rowActu = start_line; 
+						
+				}
+	}
+	
+	int i =0; 
+	printf("SELL SpmV Res \n");
+	for (;i<rows;i++) {
+
+		printf("y[%d] = %f\n",i,res_array[i]);
+	}
+
 
 
     //FREE
 
-    ;
+    
     free(col_ind);
     free(val);
     free(slice_offsets);
@@ -258,7 +293,7 @@ int main(int argc, char *argv[]) {
 		rows_array = (int *) calloc(nnz,sizeof(int));
 
 		for (int i = 0;i<nnz;i++) {
-//			printf("value %d (%d, %d) : %.2f\n",i,row_ptr_mtx[i],cols_array_mtx[i],vals_array_mtx[i]);
+			printf("value %d (%d, %d) : %.2f\n",i,row_ptr_mtx[i],cols_array_mtx[i],vals_array_mtx[i]);
 			cooarray[i].col = cols_array_mtx[i]-1; 
 			cooarray[i].val = vals_array_mtx[i];
 			cooarray[i].row = row_ptr_mtx[i]-1;
@@ -346,12 +381,14 @@ int main(int argc, char *argv[]) {
 	free(cooarray);
 
 	double * csrRes = (double*) calloc(rows,sizeof(double));
-	//computeSpmvCSR(csrRes,rows_array,cols_array,vals_array,ones,nnz,rows,row_ptr_array);
+	computeSpmvCSR(csrRes,rows_array,cols_array,vals_array,ones,nnz,rows,row_ptr_array);
 
 	//spMV SELL 
 	
-	//void computeSpmvSELL(int nbSlices, COOvalue * cooArray, int rows, int cols) {
-	//computeSpmvSELL(2,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array);
+	///void computeSpmvSELL(int nbSlices, COOvalue * cooArray, int rows, int cols) {
+	double * sellRes = (double*) calloc(rows,sizeof(double));
+
+	computeSpmvSELL(2,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array,ones,sellRes);
 
 
 
@@ -378,6 +415,7 @@ int main(int argc, char *argv[]) {
 	free(rows_array);
 	free(cols_array);
 	free(vals_array);
+	free(sellRes);
 	//free(cooarray);	
 	free(cooRes); 
 	free(csrRes);
