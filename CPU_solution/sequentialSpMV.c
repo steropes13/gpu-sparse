@@ -45,18 +45,18 @@ void computeSpmvCOO(double * res, int * rows_array, int * cols_array, double * v
 
 	printf("COO res :\n");
 	for (int i = 0; i < rows; i++) {
-    	printf("y[%d] = %.2f\n", i, res[i]);
+    	printf("y[%d] = %f\n", i, res[i]);
 		}
 	}
 
 
 void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * vals_array , double * vect, int nnz, int rows, int * row_ptr) {
 	int * occurenceArray = calloc(rows, sizeof(int));
-	printf("sorting the arrys : \n");
+//	printf("sorting the arrys : \n");
 	for (int i = 0; i < nnz;i++) {
-		printf("value  : %.2f\n",vals_array[i]); 
-		printf("Row position  : %d\n", rows_array[i]); 
-		printf("Col position  : %d\n", cols_array[i]); 
+	//	printf("value  : %.2f\n",vals_array[i]); 
+	//	printf("Row position  : %d\n", rows_array[i]); 
+	//	printf("Col position  : %d\n", cols_array[i]); 
 	}
 	
 	//number of elements for each row 
@@ -66,7 +66,7 @@ void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * v
 
 	//printing the occurence array
 	for (int j = 0; j <rows;j++) {
-		printf("row %d : %d \n",j, occurenceArray[j]);
+	//	printf("row %d : %d \n",j, occurenceArray[j]);
 	}
 
 	
@@ -74,22 +74,22 @@ void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * v
 	row_ptr[0] = 0; 
 	for (int j = 1; j <rows+1;j++) {
 		row_ptr[j] = (row_ptr[j-1]) + occurenceArray[j-1];
-		printf("prefix sum  %d : %d \n",j, (row_ptr[j]));
+	//	printf("prefix sum  %d : %d \n",j, (row_ptr[j]));
 	}	
 	free(occurenceArray);	
-	printf("final value of prefix-sum : %d \n",(row_ptr[rows]));
+	//printf("final value of prefix-sum : %d \n",(row_ptr[rows]));
 
 	//csr to matrix + result for ones
 	for (int i = 0;i<rows;i++) {
 		for (int j = row_ptr[i]; j < row_ptr[i+1];j++) {
-					printf("element (%d %d), value : %.2f\n",i,cols_array[j],vals_array[j]); 
+					//printf("element (%d %d), value : %.2f\n",i,cols_array[j],vals_array[j]); 
 			res[i] += vals_array[j]*vect[cols_array[j]];
 		}
 	}
 
 	printf("result csr : \n"); 
 	for (int i = 0;i<rows;i++) {
-    	printf("y[%d] = %.2f\n", i, res[i]);
+    	printf("y[%d] = %f\n", i, res[i]);
 	}
 
 }
@@ -258,7 +258,7 @@ int main(int argc, char *argv[]) {
 		rows_array = (int *) calloc(nnz,sizeof(int));
 
 		for (int i = 0;i<nnz;i++) {
-			printf("value %d (%d, %d) : %.2f\n",i,row_ptr_mtx[i],cols_array_mtx[i],vals_array_mtx[i]);
+//			printf("value %d (%d, %d) : %.2f\n",i,row_ptr_mtx[i],cols_array_mtx[i],vals_array_mtx[i]);
 			cooarray[i].col = cols_array_mtx[i]-1; 
 			cooarray[i].val = vals_array_mtx[i];
 			cooarray[i].row = row_ptr_mtx[i]-1;
@@ -293,7 +293,7 @@ int main(int argc, char *argv[]) {
 			srand(seed);
 		}
 		else srand(time(NULL));
-		printf("Value of nnz : %d \n",nnz);
+//		printf("Value of nnz : %d \n",nnz);
 		
 		matrix = (char*) calloc(rows*cols,sizeof(char)); 
 		cooarray = (COOvalue *) calloc(nnz,sizeof(COOvalue)); 
@@ -304,7 +304,7 @@ int main(int argc, char *argv[]) {
 
 		for (int i = 0;i<nnz;i++) {
 			randomVal = random_double(min,max); 
-			printf("Value  %d : %.2f\n", i,randomVal); 
+//			printf("Value  %d : %.2f\n", i,randomVal); 
 			do {
 				randomRow = rand() % (rows); 
 				randomCol = rand() % (cols); 
@@ -346,12 +346,12 @@ int main(int argc, char *argv[]) {
 	free(cooarray);
 
 	double * csrRes = (double*) calloc(rows,sizeof(double));
-	computeSpmvCSR(csrRes,rows_array,cols_array,vals_array,ones,nnz,rows,row_ptr_array);
+	//computeSpmvCSR(csrRes,rows_array,cols_array,vals_array,ones,nnz,rows,row_ptr_array);
 
 	//spMV SELL 
 	
 	//void computeSpmvSELL(int nbSlices, COOvalue * cooArray, int rows, int cols) {
-	computeSpmvSELL(2,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array);
+	//computeSpmvSELL(2,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array);
 
 
 
