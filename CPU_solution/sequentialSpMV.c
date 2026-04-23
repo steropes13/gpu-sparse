@@ -200,33 +200,41 @@ void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, d
     for (int i = 0; i < vectorSize; i++) {
         printf("[%d] col=%d val=%f\n", i, column_indices[i], values_array[i]);
     }
-	
+
 	printf("computation of the res : \n");
 	int rowActu = 0;
 	int columnActu = 0;
 	int valuesIndex = 0;
 	int start_line = 0, end_line = 0;
 	int start = 0;
+	int nbElmBlock = 0;
 	for (int indexOffset = 1;indexOffset<nbSlices+1;indexOffset++) {
-				start_line = slice_offsets[indexOffset-1]/sliceSize; 
+				nbElmBlock = slice_offsets[indexOffset] - slice_offsets[indexOffset-1];
 
 				rowActu = start_line;
-				end_line = start_line + sliceSize - 1;
+				end_line = (start_line + sliceSize - 1);
 				
 				//in the case the end_line is outside of the matrix due to the slice size
-				if (end_line >= rows) end_line = rows-1;
-				if (rowActu >= rows) rowActu = end_line-1;
-				printf("start_line : %d, end_line %d \n",rowActu,end_line);
-				for (int nnzBlock = 0;nnzBlock < slice_offsets[indexOffset] - slice_offsets[indexOffset-1];nnzBlock++) {
-					res_array[rowActu] += ones[cols_array[rowActu]]*values_array[valuesIndex]; 
+				//if (end_line >= rows) end_line = rows-1;
+				//if (rowActu >= rows) rowActu = end_line-1;
+				printf("start line : %d \n",start_line);
+				for (int nnzBlock = 0;nnzBlock < nbElmBlock; nnzBlock++) {
+					printf("valuesIndex : %d \n",valuesIndex);
+					if (rowActu > end_line) rowActu = start_line; 
+					if (column_indices[valuesIndex] != -1)	{
+
+					printf("line_actu : %d, end_line : %d \n",rowActu,end_line);
+						res_array[rowActu] += ones[column_indices[valuesIndex]]*values_array[valuesIndex]; 
+						rowActu++;
+					}
+					else rowActu++;
 					
 					valuesIndex++;
-					rowActu++;
-					if (rowActu > end_line) rowActu = start_line; 
 						
 				}
+				start_line = (end_line+1)%rows;
 	}
-	
+
 	int i =0; 
 	printf("SELL SpmV Res \n");
 	for (;i<rows;i++) {
