@@ -96,9 +96,11 @@ void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * v
 
 void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr,double * ones,double * res_array) {
 	int nbSlices = 0; 
-	nbSlices = (rows%2==0)?(rows/sliceSize):((rows+1)/sliceSize);
+	if (sliceSize > rows || sliceSize <= 0) sliceSize = rows; //ELLPACK by default
+	nbSlices = (rows + sliceSize - 1) / sliceSize;
+	printf("nb slices : %d\n",nbSlices);	
     // number of rows per slice
-    int rowsPerSlice = (rows + nbSlices - 1) / nbSlices;
+    int rowsPerSlice = sliceSize;
 
     //Using  CSR for SELL (sorted) 
 	// easier to access to the NNZs per row
@@ -217,11 +219,11 @@ void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, d
 				//in the case the end_line is outside of the matrix due to the slice size
 				//if (end_line >= rows) end_line = rows-1;
 				//if (rowActu >= rows) rowActu = end_line-1;
-				printf("start line : %d \n",start_line);
+				printf("start line --------- : %d \n",start_line);
 				for (int nnzBlock = 0;nnzBlock < nbElmBlock; nnzBlock++) {
 					printf("valuesIndex : %d \n",valuesIndex);
 					if (rowActu > end_line) rowActu = start_line; 
-					if (column_indices[valuesIndex] != -1)	{
+					 if (rowActu <rows && column_indices[valuesIndex] != -1)	{
 
 					printf("line_actu : %d, end_line : %d \n",rowActu,end_line);
 						res_array[rowActu] += ones[column_indices[valuesIndex]]*values_array[valuesIndex]; 
@@ -232,7 +234,7 @@ void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, d
 					valuesIndex++;
 						
 				}
-				start_line = (end_line+1)%rows;
+				start_line += sliceSize;
 	}
 
 	int i =0; 
@@ -267,6 +269,7 @@ int main(int argc, char *argv[]) {
 	
 
 	unsigned int seed = 19;
+	unsigned int sliceSize = 0;
 	int rows = 0; 
 	int cols = 0;
 	int nnz = 0;
@@ -289,7 +292,8 @@ int main(int argc, char *argv[]) {
 
 
 	// so it can be a filename (.mtx)
-	if (argc == 2) {
+	if (argc == 3) {
+		sliceSize = atoi(argv[2]);
 		sprintf(filename, "%s",argv[1]);
 		printf("filename : %s \n",filename);
 		user_matrix = 1;
@@ -322,17 +326,18 @@ int main(int argc, char *argv[]) {
 	}
 	//in case the matrix has to be randomized with sizes written by user.
 	else {
-		if (argc < 4) {
-			printf("Usage: %s <rows> <cols> <nnz> or %s <path-of-file.mtx>\n", argv[0],argv[0]);
+		if (argc < 5) {
+			printf("Usage: %s <rows> <cols> <nnz> <sliceSize> [SEEED] or %s <path-of-file.mtx> <sliceSize>\n", argv[0],argv[0]);
 			return 1;
 		}
 		rows = atoi(argv[1]);
 		cols = atoi(argv[2]);
 		nnz = atoi(argv[3]);
+		sliceSize = atoi(argv[4]);
 		//the case the user added a fifth parameter 
 		// and it is a number (seed)
-		if (argc == 5) {
-			seed = atoi(argv[4]);
+		if (argc == 6) {
+			seed = atoi(argv[5]);
 			srand(seed);
 		}
 		else srand(time(NULL));
@@ -367,6 +372,7 @@ int main(int argc, char *argv[]) {
 		}
 		free(matrix);
 	}
+	printf("Silce size : %d\n",sliceSize);
 	//vector we use for the multiplication
 	ones = (double *) malloc(cols*sizeof(double));
 	for (int i=0;i<cols;i++) {ones[i] = 1.0;}
@@ -396,7 +402,7 @@ int main(int argc, char *argv[]) {
 	///void computeSpmvSELL(int nbSlices, COOvalue * cooArray, int rows, int cols) {
 	double * sellRes = (double*) calloc(rows,sizeof(double));
 
-	computeSpmvSELL(2,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array,ones,sellRes);
+	computeSpmvSELL(sliceSize,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array,ones,sellRes);
 
 
 
