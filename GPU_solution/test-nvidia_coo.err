@@ -1,0 +1,12 @@
+spmv.cu(88): warning #550-D: variable "user_matrix" was set but never used
+
+spmv.cu(99): warning #177-D: variable "occurRow" was declared but never referenced
+
+spmv.cu(99): warning #177-D: variable "actuRow" was declared but never referenced
+
+spmv.cu(99): warning #177-D: variable "numberOccur" was declared but never referenced
+
+spmv.cu(107): warning #177-D: variable "timers" was declared but never referenced
+
+spmv.cu(114): warning #177-D: variable "GPU_RowPtr" was declared but never referenced
+
