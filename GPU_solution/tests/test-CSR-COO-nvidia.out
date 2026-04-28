@@ -1,0 +1,57 @@
+rm -rf bin obj
+nvcc -c src/my_time_lib.c -o obj/my_time_lib.o -lm
+nvcc -c src/mmio.c -o obj/mmio.o -lm
+nvcc -c src/spmvCPU.c -o obj/spmvCPU.o -lm
+nvcc -arch=sm_80 spmv.cu obj/my_time_lib.o obj/mmio.o obj/spmvCPU.o -g -o bin/spmv  -I../../ -lm
+======================================= Device properties ========================================
+CUDA Device Query...
+There are 1 CUDA devices.
+
+CUDA Device #0
+Major revision number:         8
+Minor revision number:         0
+Name:                          NVIDIA A30
+  Memory Clock rate:           1215 Mhz
+  Memory Bus Width:            3072 bit
+  Peak Memory Bandwidth:       933.120 GB/s
+  Multiprocessors:              56
+  Maximum number of threads per multiprocessor:  2048
+  Maximum number of threads per block:           1024
+  Max dimension size of a thread block (x,y,z): (1024, 1024, 64)
+  Max dimension size of a grid size    (x,y,z): (2147483647, 65535, 65535)
+  Total amount of shared memory per block:       49152 bytes
+filename : mtx_matrix/nvidia.mtx 
+does the function work ? 0 
+value 0 (1, 1) : 1.00
+value 1 (1, 3) : 2.00
+value 2 (2, 2) : 3.00
+value 3 (4, 1) : 4.00
+value 4 (4, 2) : 5.00
+value 5 (5, 2) : 6.00
+value 6 (5, 3) : 7.00
+value 7 (5, 4) : 8.00
+Silce size : 2
+COO res :
+y[0] = 3.000000
+y[1] = 3.000000
+y[2] = 0.000000
+y[3] = 9.000000
+y[4] = 21.000000
+COO res (GPU) =========== :
+y[0] = 3.000000
+y[1] = 3.000000
+y[2] = 0.000000
+y[3] = 9.000000
+y[4] = 21.000000
+result csr : 
+y[0] = 3.000000
+y[1] = 3.000000
+y[2] = 0.000000
+y[3] = 9.000000
+y[4] = 21.000000
+CSR res (GPU) =========== :
+y[0] = 3.000000
+y[1] = 3.000000
+y[2] = 0.000000
+y[3] = 9.000000
+y[4] = 21.000000

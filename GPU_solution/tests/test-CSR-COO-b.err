@@ -1,0 +1,10 @@
+spmv.cu(118): warning #550-D: variable "user_matrix" was set but never used
+
+spmv.cu(129): warning #177-D: variable "occurRow" was declared but never referenced
+
+spmv.cu(129): warning #177-D: variable "actuRow" was declared but never referenced
+
+spmv.cu(129): warning #177-D: variable "numberOccur" was declared but never referenced
+
+spmv.cu(137): warning #177-D: variable "timers" was declared but never referenced
+

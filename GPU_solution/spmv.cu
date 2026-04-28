@@ -66,6 +66,24 @@ void computeSpmvCOOGPU(double * res, int * rows_array, int * cols_array, double 
 }
     }   
 
+__global__
+void computeSpmvCSRGPU(double * res, int * rows_array, int * cols_array, double * vals_array , double * vect, int nnz, int rows, int * row_ptr) {
+
+		
+	int idx = threadIdx.x + blockIdx.x * blockDim.x;
+
+    //csr to matrix + result for ones
+    for (int i = idx;i<rows;i+=blockDim.x*gridDim.x) {
+        for (int j = row_ptr[i]; j < row_ptr[i+1];j++) {
+                    //printf("element (%d %d), value : %.2f\n",i,cols_array[j],vals_array[j]); 
+            res[i] += vals_array[j]*vect[cols_array[j]];
+        }
+    }
+
+    }
+
+
+
 
 
 
@@ -123,7 +141,8 @@ int main(int argc, char * argv[]) {
 	int * GPU_rows; 
 	double * GPU_vals;
 	double * GPU_COOres; 
-	int * GPU_RowPtr; 
+	double * GPU_CSRres; 
+	int * GPU_row_ptr; 
 	double * GPU_vect; 
 	
 	int GPU_len = 0;
@@ -267,15 +286,8 @@ printf("COO res (GPU) =========== :\n");
         }   	
 
 
-
-
-
-
-
-
-
 	// spMV CSR  
-	/*
+	
 	int * row_ptr_array = (int *) calloc(rows+1,sizeof(int));;
 	qsort(cooarray,nnz,sizeof(COOvalue),compare);
 	
@@ -287,11 +299,42 @@ printf("COO res (GPU) =========== :\n");
 	}
 
 	free(cooarray);
-*/
+	
+	//copies the re-orgered CPU arrays in the GPU ones
+	cudaMemcpy(GPU_rows,rows_array,GPU_len*sizeof(int),cudaMemcpyHostToDevice);
+ 
+	cudaMemcpy(GPU_cols,cols_array,GPU_len*sizeof(int),cudaMemcpyHostToDevice); 
+	
+	cudaMemcpy(GPU_vals,vals_array,GPU_len*sizeof(double),cudaMemcpyHostToDevice); 
 
-//	double * csrRes = (double*) calloc(rows,sizeof(double));
-//	computeSpmvCSR(csrRes,rows_array,cols_array,vals_array,ones,nnz,rows,row_ptr_array);
 
+
+
+	double * csrRes = (double*) calloc(rows,sizeof(double));
+	
+	cudaMalloc(&GPU_CSRres,rows*sizeof(double));
+	
+	cudaMalloc(&GPU_row_ptr,(rows+1)*sizeof(int));
+	computeSpmvCSR(csrRes,rows_array,cols_array,vals_array,ones,nnz,rows,row_ptr_array);
+
+	
+
+	cudaMemcpy(GPU_row_ptr,row_ptr_array,(rows+1)*sizeof(int),cudaMemcpyHostToDevice);
+
+
+	computeSpmvCSRGPU<<<grid_size,block_size>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
+
+
+  	cudaMemcpy(csrRes,GPU_CSRres , rows*sizeof(double),cudaMemcpyDeviceToHost);	
+
+	printf("CSR res (GPU) =========== :\n");
+    for (int i = 0; i < rows; i++) {
+        printf("y[%d] = %f\n", i, csrRes[i]);
+        }   	
+
+
+
+	
 	//spMV SELL 
 	
 	///void computeSpmvSELL(int nbSlices, COOvalue * cooArray, int rows, int cols) {
