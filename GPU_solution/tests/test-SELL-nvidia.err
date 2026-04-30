@@ -1,0 +1,12 @@
+spmv.cu(91): warning #177-D: variable "nbSlices" was declared but never referenced
+
+spmv.cu(152): warning #550-D: variable "user_matrix" was set but never used
+
+spmv.cu(163): warning #177-D: variable "occurRow" was declared but never referenced
+
+spmv.cu(163): warning #177-D: variable "actuRow" was declared but never referenced
+
+spmv.cu(163): warning #177-D: variable "numberOccur" was declared but never referenced
+
+spmv.cu(171): warning #177-D: variable "timers" was declared but never referenced
+

@@ -84,8 +84,42 @@ void computeSpmvCSRGPU(double * res, int * rows_array, int * cols_array, double 
 
 
 
+__global__ 
+void computeSpmvSellGPU(int sliceSize,int rows, int * slice_offsets,int * column_indices,double* values_array,double * ones, double * res_array) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
+    int nbSlices = (rows + sliceSize - 1) / sliceSize;
 
+    // grid-stride on the lines 
+    for (int row = idx; row < rows; row += blockDim.x * gridDim.x)
+    {
+        int slice = row / sliceSize;
+        int row_in_slice = row % sliceSize;
+
+        int start = slice_offsets[slice];
+        int end   = slice_offsets[slice + 1];
+
+        int slice_width = (end - start) / sliceSize;
+
+        double sum = 0.0;
+
+		// SELL, column per column
+        for (int k = 0; k < slice_width; k++)
+        {
+            int index = start + k * sliceSize + row_in_slice;
+
+            int col = column_indices[index];
+
+            if (col != -1)
+            {
+                sum += values_array[index] * ones[col];
+            }
+        }
+
+		//final result per line
+        res_array[row] = sum;
+    }
+}
 
 
 
@@ -147,8 +181,8 @@ int main(int argc, char * argv[]) {
 	
 	int GPU_len = 0;
 	int GPU_resLen = 0;
-	int block_size = 256; 
-	int grid_size = 1; //needs to be changed (train with oth    er values)
+	int block_size = 233; 
+	int grid_size = 255; //needs to be changed (train with oth    er values)
 	
 	
 
@@ -313,6 +347,8 @@ printf("COO res (GPU) =========== :\n");
 	double * csrRes = (double*) calloc(rows,sizeof(double));
 	
 	cudaMalloc(&GPU_CSRres,rows*sizeof(double));
+
+	cudaMemset(GPU_CSRres,0,rows*sizeof(double));
 	
 	cudaMalloc(&GPU_row_ptr,(rows+1)*sizeof(int));
 	computeSpmvCSR(csrRes,rows_array,cols_array,vals_array,ones,nnz,rows,row_ptr_array);
@@ -342,6 +378,51 @@ printf("COO res (GPU) =========== :\n");
 
 //	computeSpmvSELL(sliceSize,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array,ones,sellRes);
 
+	  double * sellRes = (double*) calloc(rows,sizeof(double));
+
+    //computeSpmvSELL(sliceSize,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array,ones,sellRes);
+
+    int sizeSellVect = 0;
+    int sizeSliceOffset = 0;
+    int * slice_offsetsSell;
+    int * column_indicesSell;
+    double * values_arraySell;
+    computeSpmvSELLv2(sliceSize,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array,ones,sellRes,&column_indicesSell, &values_arraySell,&slice_offsetsSell,&sizeSellVect,&sizeSliceOffset);
+
+
+
+    printf("sizeSellVect : %d \n",sizeSellVect);
+    printf("sizeSliceOffset : %d \n",sizeSliceOffset);
+
+	// sell GPU 
+	int * GPU_sliceOffset; 
+	cudaMalloc(&GPU_sliceOffset,sizeSliceOffset*sizeof(int)); 
+
+	int * GPU_column_indicesSell; 
+	cudaMalloc(&GPU_column_indicesSell,sizeSellVect*sizeof(int));
+
+	double * GPU_values_arraySell; 
+	cudaMalloc(&GPU_values_arraySell,sizeSellVect*sizeof(double));
+
+	double * GPU_SELLres;
+	cudaMalloc(&GPU_SELLres,rows*sizeof(double));
+
+	cudaMemset(GPU_SELLres,0,rows*sizeof(double));
+
+	cudaMemcpy(GPU_sliceOffset,slice_offsetsSell,sizeSliceOffset*sizeof(int),cudaMemcpyHostToDevice);
+	cudaMemcpy(GPU_column_indicesSell,column_indicesSell,sizeSellVect*sizeof(int),cudaMemcpyHostToDevice);
+	cudaMemcpy(GPU_values_arraySell,values_arraySell,sizeSellVect*sizeof(double),cudaMemcpyHostToDevice);
+
+	computeSpmvSellGPU<<<grid_size,block_size>>>(sliceSize,rows, GPU_sliceOffset,GPU_column_indicesSell,GPU_values_arraySell,GPU_vect, GPU_SELLres);
+
+  	cudaMemcpy(sellRes, GPU_SELLres, rows*sizeof(double),cudaMemcpyDeviceToHost);	
+
+	printf("SELL res (GPU) =========== :\n");
+    for (int i = 0; i < rows; i++) {
+        printf("y[%d] = %f\n", i, sellRes[i]);
+        }   	
+
+
 	
 
 
@@ -355,10 +436,13 @@ printf("COO res (GPU) =========== :\n");
 	free(rows_array);
 	free(cols_array);
 	free(vals_array);
-	//free(sellRes);
+	free(sellRes);
 	free(cooRes); 
-//	free(csrRes);
+	free(csrRes);
 	free(ones);
+ 	free(slice_offsetsSell);
+    free(column_indicesSell);
+    free(values_arraySell);
 
 	// GPU FREE 
 	
@@ -367,6 +451,9 @@ printf("COO res (GPU) =========== :\n");
 	cudaFree(GPU_vals);
 	cudaFree(GPU_cols);
 	cudaFree(GPU_COOres);
+	cudaFree(GPU_row_ptr);
+	cudaFree(GPU_CSRres); 
+	cudaFree(GPU_SELLres);
 	cudaFree(GPU_vect);
 
 

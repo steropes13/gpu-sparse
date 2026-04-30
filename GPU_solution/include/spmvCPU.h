@@ -28,6 +28,9 @@ void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * v
 
 void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr,double * ones,double * res_array);
 
+void computeSpmvSELLv2(int sliceSize,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr,double * ones,double * res_array,int ** column_indices, double ** values_array, int ** slice_offsets, int * sizeVect, int * sizeOffset);
+
+
 #ifdef __cplusplus
 }
 #endif
