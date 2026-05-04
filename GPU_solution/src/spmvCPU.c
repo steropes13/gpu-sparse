@@ -1,4 +1,5 @@
 #include "../include/spmvCPU.h"
+#include "../include/my_time_lib.h"
 
 double random_double(double min, double max) {
     return min + (max - min) * ((double)rand() / RAND_MAX);
@@ -32,13 +33,15 @@ void computeSpmvCOO(double * res, int * rows_array, int * cols_array, double * v
 
 	printf("COO res :\n");
 	for (int i = 0; i < rows; i++) {
-    	printf("y[%d] = %f\n", i, res[i]);
+    	//printf("y[%d] = %f\n", i, res[i]);
 		}
 	}
 
 
 void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * vals_array , double * vect, int nnz, int rows, int * row_ptr) {
 	int * occurenceArray = calloc(rows, sizeof(int));
+	TIMER_DEF; 
+	float CSR_time;
 //	printf("sorting the arrys : \n");
 	for (int i = 0; i < nnz;i++) {
 	//	printf("value  : %.2f\n",vals_array[i]); 
@@ -67,20 +70,28 @@ void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * v
 	//printf("final value of prefix-sum : %d \n",(row_ptr[rows]));
 
 	//csr to matrix + result for ones
+	TIMER_START;
 	for (int i = 0;i<rows;i++) {
 		for (int j = row_ptr[i]; j < row_ptr[i+1];j++) {
 					//printf("element (%d %d), value : %.2f\n",i,cols_array[j],vals_array[j]); 
 			res[i] += vals_array[j]*vect[cols_array[j]];
 		}
 	}
+	TIMER_STOP;
+	CSR_time = TIMER_ELAPSED;
+	printf("time CSR CPU : %3.5f\n",CSR_time);
 
-	printf("result csr : \n"); 
+	//printf("result csr : \n"); 
+	
 	for (int i = 0;i<rows;i++) {
-    	printf("y[%d] = %f\n", i, res[i]);
+		
+    //	printf("y[%d] = %f\n", i, res[i]);
 	}
 
 }
 void computeSpmvSELLv2(int sliceSize,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr,double * ones,double * res_array,int ** column_indices, double ** values_array, int ** slice_offsets, int * sizeVect, int * sizeOffset) {
+	TIMER_DEF;
+	float CPU_time;
     int nbSlices = 0;  
     if (sliceSize > rows || sliceSize <= 0) sliceSize = rows; //ELLPACK by default
     nbSlices = (rows + sliceSize - 1) / sliceSize;
@@ -127,13 +138,13 @@ void computeSpmvSELLv2(int sliceSize,int nnz, int * rows_array,int * cols_array,
 
         (*slice_offsets)[s+1] = (*slice_offsets)[s] + max_nnz * rowsPerSlice;
 
-        printf("slice %d : max_nnz=%d offset=%d\n",
-               s, max_nnz, (*slice_offsets)[s]);
+     //   printf("slice %d : max_nnz=%d offset=%d\n",
+               //s, max_nnz, (*slice_offsets)[s]);
     }
     //allocate SELL 
 
     int vectorSize = (*slice_offsets)[nbSlices];
-printf("vector size : %d \n",(*slice_offsets)[nbSlices]);
+	//printf("vector size : %d \n",(*slice_offsets)[nbSlices]);
     *column_indices = (int *) calloc(vectorSize, sizeof(int));
     *values_array = (double *) calloc(vectorSize, sizeof(double));
     *sizeVect = vectorSize;
@@ -186,18 +197,19 @@ printf("vector size : %d \n",(*slice_offsets)[nbSlices]);
 
     //DEBUG PRINT
 
-    printf("SELL result:\n");
+    //printf("SELL result:\n");
     for (int i = 0; i < vectorSize; i++) {
-        printf("[%d] col=%d val=%f\n", i, (*column_indices)[i], (*values_array)[i]);
+      //  printf("[%d] col=%d val=%f\n", i, (*column_indices)[i], (*values_array)[i]);
     }
 
-    printf("computation of the res : \n");
+    //printf("computation of the res : \n");
     int rowActu = 0;
     int columnActu = 0;
     int valuesIndex = 0;
     int start_line = 0, end_line = 0;
     int start = 0;
     int nbElmBlock = 0;
+	TIMER_START;
     for (int indexOffset = 1;indexOffset<nbSlices+1;indexOffset++) {
 				 nbElmBlock = (*slice_offsets)[indexOffset] - (*slice_offsets)[indexOffset-1];
 
@@ -207,13 +219,13 @@ printf("vector size : %d \n",(*slice_offsets)[nbSlices]);
                 //in the case the end_line is outside of the matrix due to the slice size
                 //if (end_line >= rows) end_line = rows-1;
                 //if (rowActu >= rows) rowActu = end_line-1;
-                printf("start line --------- : %d \n",start_line);
+               // printf("start line --------- : %d \n",start_line);
                 for (int nnzBlock = 0;nnzBlock < nbElmBlock; nnzBlock++) {
-                    printf("valuesIndex : %d \n",valuesIndex);
+                //    printf("valuesIndex : %d \n",valuesIndex);
                     if (rowActu > end_line) rowActu = start_line;
                      if (rowActu <rows && (*column_indices)[valuesIndex] != -1) {
 
-                    printf("line_actu : %d, end_line : %d \n",rowActu,end_line);
+                 //   printf("line_actu : %d, end_line : %d \n",rowActu,end_line);
                         res_array[rowActu] += ones[(*column_indices)[valuesIndex]]*(*values_array)[valuesIndex];
                         rowActu++;
                     }
@@ -223,12 +235,15 @@ printf("vector size : %d \n",(*slice_offsets)[nbSlices]);
                 }
                 start_line += sliceSize;
     }
+	TIMER_STOP;
+	CPU_time = TIMER_ELAPSED;
+	printf("Time of SELL (CPU) : %3.5f\n",CPU_time);
 
     int i =0;
-    printf("SELL SpmV Res \n");
+    //printf("SELL SpmV Res \n");
     for (;i<rows;i++) {
 
-        printf("y[%d] = %f\n",i,res_array[i]);
+     //   printf("y[%d] = %f\n",i,res_array[i]);
     }
 
 

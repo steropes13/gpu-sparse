@@ -16,5 +16,5 @@ make clean
 
 make
 
-./bin/spmv mtx_matrix/nvidia.mtx 5
+./bin/spmv mtx_matrix/b.mtx 2
 
