@@ -1,0 +1,41 @@
+rm -rf bin obj
+nvcc -c src/my_time_lib.c -o obj/my_time_lib.o -lm
+nvcc -c src/mmio.c -o obj/mmio.o -lm
+nvcc -c src/spmvCPU.c -o obj/spmvCPU.o -lm
+nvcc -arch=sm_80 spmv.cu obj/my_time_lib.o obj/mmio.o obj/spmvCPU.o -g -o bin/spmv  -I../../ -lm
+======================================= Device properties ========================================
+CUDA Device Query...
+There are 1 CUDA devices.
+
+CUDA Device #0
+Major revision number:         8
+Minor revision number:         9
+Name:                          NVIDIA L40S
+  Memory Clock rate:           9001 Mhz
+  Memory Bus Width:            384 bit
+  Peak Memory Bandwidth:       864.096 GB/s
+  Multiprocessors:             142
+  Maximum number of threads per multiprocessor:  1536
+  Maximum number of threads per block:           1024
+  Max dimension size of a thread block (x,y,z): (1024, 1024, 64)
+  Max dimension size of a grid size    (x,y,z): (2147483647, 65535, 65535)
+  Total amount of shared memory per block:       49152 bytes
+filename : mtx_matrix/cage15/cage15.mtx 
+does the function work ? 0 
+Silce size : 2
+COO res :
+Time of COO (CPU) : 300.34000 ms 
+Time of GPU in COO (host) : 3.17000 ms
+COO res (GPU) =========== :
+Time of GPU in COO (cuda event) : 2.99728 ms
+time CSR CPU : 329.14200 ms
+TIME OF csr gpu (host) : 3.81200 ms 
+Time of GPU in CSR (cuda event) : 3.73443
+CSR res (GPU) =========== :
+nb slices : 2577430
+Time of SELL (CPU) : 374.36301 ms
+sizeSellVect : 100421854 
+sizeSliceOffset : 2577431 
+Time of GPU on SELL (Host) : 3.75300 ms 
+SELL res (GPU) =========== :
+Time of GPU in SELL (cuda event) : 3.65776 ms

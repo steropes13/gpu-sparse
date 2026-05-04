@@ -79,7 +79,7 @@ void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * v
 	}
 	TIMER_STOP;
 	CSR_time = TIMER_ELAPSED;
-	printf("time CSR CPU : %3.5f\n",CSR_time);
+	printf("time CSR CPU : %3.5f ms\n",CSR_time*1000);
 
 	//printf("result csr : \n"); 
 	
@@ -237,7 +237,7 @@ void computeSpmvSELLv2(int sliceSize,int nnz, int * rows_array,int * cols_array,
     }
 	TIMER_STOP;
 	CPU_time = TIMER_ELAPSED;
-	printf("Time of SELL (CPU) : %3.5f\n",CPU_time);
+	printf("Time of SELL (CPU) : %3.5f ms\n",CPU_time*1000);
 
     int i =0;
     //printf("SELL SpmV Res \n");
