@@ -1,0 +1,90 @@
+
+[5154849] = 0.728830
+y[5154850] = 0.751126
+y[5154851] = 0.759985
+y[5154852] = 0.693392
+y[5154853] = 0.509967
+y[5154854] = 0.526689
+y[5154855] = 0.539978
+y[5154856] = 0.490033
+y[5154857] = 0.343337
+y[5154858] = 0.345552
+for sliceSize : 8
+COO res :
+Time of COO (CPU) : 298.12100 ms 
+Time of GPU in COO (host) : 2.82700 ms
+COO res (GPU) =========== :
+Time of GPU in COO (cuda event) : 2.70541 ms
+time CSR CPU : 328.65500 ms
+TIME OF csr gpu (host) : 3.41300 ms 
+Time of GPU in CSR (cuda event) : 3.33722 ms
+CSR res (GPU) =========== :
+nb slices : 644358
+Time of SELL (CPU) : 365.28799 ms
+sizeSellVect : 102099224 
+sizeSliceOffset : 644359 
+Time of GPU on SELL (Host) : 3.37400 ms 
+SELL res (GPU) =========== :
+Time of GPU in SELL (cuda event) : 3.30445 ms
+
+y[5154847] = 0.666667
+y[5154848] = 0.653378
+y[5154849] = 0.728830
+y[5154850] = 0.751126
+y[5154851] = 0.759985
+y[5154852] = 0.693392
+y[5154853] = 0.509967
+y[5154854] = 0.526689
+y[5154855] = 0.539978
+y[5154856] = 0.490033
+y[5154857] = 0.343337
+y[5154858] = 0.345552
+for sliceSize : 14
+COO res :
+Time of COO (CPU) : 297.76901 ms 
+Time of GPU in COO (host) : 2.82500 ms
+COO res (GPU) =========== :
+Time of GPU in COO (cuda event) : 2.70643 ms
+time CSR CPU : 370.90799 ms
+TIME OF csr gpu (host) : 3.42600 ms 
+Time of GPU in CSR (cuda event) : 3.34035 ms
+CSR res (GPU) =========== :
+nb slices : 368205
+Time of SELL (CPU) : 349.12601 ms
+sizeSellVect : 102682678 
+sizeSliceOffset : 368206 
+Time of GPU on SELL (Host) : 2.79300 ms 
+SELL res (GPU) =========== :
+Time of GPU in SELL (cuda event) : 2.72691 ms
+
+y[5154844] = 0.683389
+y[5154845] = 0.679956
+y[5154846] = 0.666667
+y[5154847] = 0.666667
+y[5154848] = 0.653378
+y[5154849] = 0.728830
+y[5154850] = 0.751126
+y[5154851] = 0.759985
+y[5154852] = 0.693392
+y[5154853] = 0.509967
+y[5154854] = 0.526689
+y[5154855] = 0.539978
+y[5154856] = 0.490033
+y[5154857] = 0.343337
+y[5154858] = 0.345552
+for sliceSize : 25
+Time of COO (CPU) : 298.23300 ms 
+Time of GPU in COO (host) : 2.82000 ms
+COO res (GPU) =========== :
+Time of GPU in COO (cuda event) : 2.70214 ms
+time CSR CPU : 331.21802 ms
+TIME OF csr gpu (host) : 3.40600 ms 
+Time of GPU in CSR (cuda event) : 3.33824 ms
+CSR res (GPU) =========== :
+nb slices : 206195
+Time of SELL (CPU) : 350.92899 ms
+sizeSellVect : 103346750 
+sizeSliceOffset : 206196 
+Time of GPU on SELL (Host) : 2.46400 ms 
+SELL res (GPU) =========== :
+Time of GPU in SELL (cuda event) : 2.39491 ms

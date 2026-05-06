@@ -16,5 +16,6 @@ make clean
 
 make
 
-./bin/spmv mtx_matrix/cage15/cage15.mtx 2
+./bin/spmv mtx_matrix/cage15/cage15.mtx 8
+
 
