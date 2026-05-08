@@ -14,6 +14,6 @@ module load CUDA/11.8.0
 
 make
 
-./bin/spmv ../del-1/GPU_solution/mtx_matrix/cage15/cage15.mtx 2
+./bin/spmvCusparse ../del-1/GPU_solution/mtx_matrix/cage15/cage15.mtx 2
 
 
