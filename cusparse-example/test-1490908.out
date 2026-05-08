@@ -1,4 +1,0 @@
-nvcc -c src/my_time_lib.c -o obj/my_time_lib.o -lm -lcusparse
-nvcc -c src/mmio.c -o obj/mmio.o -lm -lcusparse
-nvcc -arch=sm_80 spmv_coo_example.c obj/my_time_lib.o obj/mmio.o -g -o bin/spmv_coo_example  -I../../ -I/opt/shares/cuda/software/CUDA/11.8.0/bin/../include -lm -lcusparse
-spmv_coo_example test PASSED
