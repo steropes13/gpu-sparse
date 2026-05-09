@@ -34,6 +34,13 @@
     }                                                                          \
 }
 
+enum spmvType {
+	COO,
+	CSR,
+	ELL,
+	SELL
+};
+
 
 
 // Print device properties
@@ -116,20 +123,27 @@ int main(int argc, char * argv[]) {
 	
 	int GPU_len = 0;
 	int GPU_resLen = 0;
-	int blockSize = 255; 
-	int numBlocks = 255; //needs to be changed (train with oth    er values)
-	int sharedMemSize = 0;
-	
+
 	//TIME MEASUREMENT 
 	TIMER_DEF;
 	float GPU_COO_time,GPU_CSR_time,GPU_SELL_time, CPU_COO_time;	
 
-
+	
 	int randomRow = 0, randomCol = 0;
 	float randomVal = 0.0;
 	// so it can be a filename (.mtx)
-	if (argc == 3) {
+
+	//writing in a file 
+	FILE * file; 
+	file = fopen("res.txt", "w");
+	enum spmvType computationType = COO;
+
+
+
+	if (argc == 4) {
 		sliceSize = atoi(argv[2]);
+		computationType = (spmvType) atoi(argv[3]);
+		printf("spmV type : %d\n",computationType);
 		sprintf(filename, "%s",argv[1]);
 		printf("filename : %s \n",filename);
 		user_matrix = 1;
@@ -163,18 +177,20 @@ int main(int argc, char * argv[]) {
 	}
 	//in case the matrix has to be randomized with sizes written by user.
 	else {
-		if (argc < 5) {
-			printf("Usage: %s <rows> <cols> <nnz> <sliceSize> [SEEED] or %s <path-of-file.mtx> <sliceSize>\n", argv[0],argv[0]);
+		if (argc < 6) {
+			printf("Usage: %s <rows> <cols> <nnz> <sliceSize> <spmvType> [SEEED] or %s <path-of-file.mtx> <sliceSize> <spmvType>\n", argv[0],argv[0]);
 			return 1;
 		}
 		rows = atoi(argv[1]);
 		cols = atoi(argv[2]);
 		nnz = atoi(argv[3]);
 		sliceSize = atoi(argv[4]);
+		computationType = (spmvType) atoi(argv[5]);	
+		printf("spmV type : %d\n",computationType);
 		//the case the user added a fifth parameter 
 		// and it is a number (seed)
-		if (argc == 6) {
-			seed = atoi(argv[5]);
+		if (argc == 7) {
+			seed = atoi(argv[6]);
 			srand(seed);
 		}
 		else srand(time(NULL));
@@ -219,143 +235,100 @@ int main(int argc, char * argv[]) {
 
 	// SpMV COO 
 	float * cooRes = (float*) calloc(rows,sizeof(float));
-	computeSpmvCOO(cooRes,rows_array,cols_array,vals_array,ones,nnz,rows);
-
-	// GPU part ==========================
-	
-	GPU_len = (nnz); GPU_resLen = (rows);
-	cudaMalloc(&GPU_rows,GPU_len*sizeof(int));
-	cudaMalloc(&GPU_cols,GPU_len*sizeof(int));
-	cudaMalloc(&GPU_vals,GPU_len*sizeof(float));
-	cudaMalloc(&GPU_vect, (cols)*sizeof(float));
-	cudaMalloc(&GPU_COOres,GPU_resLen*sizeof(float)); 
-
-	cudaMemcpy(GPU_rows,rows_array,GPU_len*sizeof(int),cudaMemcpyHostToDevice);
- 
-	cudaMemcpy(GPU_cols,cols_array,GPU_len*sizeof(int),cudaMemcpyHostToDevice); 
-	
-	cudaMemcpy(GPU_vals,vals_array,GPU_len*sizeof(float),cudaMemcpyHostToDevice); 
-
-	cudaMemcpy(GPU_vect,ones,cols*sizeof(float),cudaMemcpyHostToDevice); 
-
-	cudaMemset(GPU_COOres,0,GPU_resLen*sizeof(float));
-
-
-	//time measurement with cuda event
-	//numBlocks = (nnz + blockSize - 1) / blockSize; //we are working on nnz so the grid size has to be adapted to this unit
 
 
 
-
-/*
-//	TIMER_START; 
-//	computeSpmvCOOGPU<<<numBlocks,blockSize>>>(GPU_COOres, GPU_rows, GPU_cols, GPU_vals , GPU_vect, GPU_len, GPU_resLen);
-//	cudaDeviceSynchronize();
-//	TIMER_STOP;
-//	GPU_COO_time = TIMER_ELAPSED; 
-//	printf("Time of GPU in COO (host) : %3.5f ms\n",GPU_COO_time*1000);
-	
-  
-	cudaDeviceSynchronize(); //waits for the end of GPU
-  cudaMemcpy(cooRes,GPU_COOres , GPU_resLen*sizeof(float),cudaMemcpyDeviceToHost);	
-
-printf("COO res (GPU) =========== :\n");
-    for (int i = 0; i < rows; i++) {
-        //printf("y[%d] = %f\n", i, cooRes[i]);
-        }   	
-
-
-	//time measurement with cuda event
-	cudaMemset(GPU_COOres,0,GPU_resLen*sizeof(float));
-
-	cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
-	cudaEvent_t start_coo, stop_coo;
-	cudaEventCreate(&start_coo);	
-	cudaEventCreate(&stop_coo);
-	cudaEventRecord(start_coo);
-	computeSpmvCOOGPU<<<numBlocks,blockSize>>>(GPU_COOres, GPU_rows, GPU_cols, GPU_vals , GPU_vect, GPU_len, GPU_resLen);
-	cudaEventRecord(stop_coo);
-	cudaEventSynchronize(stop_coo);
-	cudaEventElapsedTime(&GPU_COO_time,start_coo,stop_coo);
-	cudaEventDestroy(start_coo);
-	cudaEventDestroy(stop_coo);
-	printf("Time of GPU in COO (cuda event) : %3.5f ms\n",GPU_COO_time);
+// CUSPARSE APIs ====================================================================
+		cusparseHandle_t     handle = NULL;
+		cusparseSpMatDescr_t matA;
+		cusparseDnVecDescr_t vecX, vecY;
+		void*                dBuffer    = nullptr;
+		size_t               bufferSize = 0;
+		float alpha = 1.0f;
+		float beta = 0.0f;
+		float GPU_CUSPARSE_time = 0;
 	
 
-*/
-
-    // CUSPARSE APIs ====================================================================
-    cusparseHandle_t     handle = NULL;
-    cusparseSpMatDescr_t matA;
-    cusparseDnVecDescr_t vecX, vecY;
-    void*                dBuffer    = NULL;
-    size_t               bufferSize = 0;
-	float alpha = 1.0f;
-	float beta = 0.0f;
-	float GPU_COO_SPARSE_time = 0.0f;
-    CHECK_CUSPARSE( cusparseCreate(&handle) )
-    // Create sparse matrix A in COO format
-    CHECK_CUSPARSE( cusparseCreateCoo(&matA, rows, cols, nnz,
-                                      GPU_rows, GPU_cols, GPU_vals,
-                                      CUSPARSE_INDEX_32I,
-                                      CUSPARSE_INDEX_BASE_ZERO, CUDA_R_32F) )      
+		//arrays allocation 
+		GPU_len = (nnz); GPU_resLen = (rows);
+		cudaMalloc(&GPU_rows,GPU_len*sizeof(int));
+		cudaMalloc(&GPU_cols,GPU_len*sizeof(int));
+		cudaMalloc(&GPU_vals,GPU_len*sizeof(float));
+		cudaMalloc(&GPU_vect, (cols)*sizeof(float));
+		cudaMalloc(&GPU_COOres,GPU_resLen*sizeof(float)); 
 
 
-    // Create dense vector X
-    CHECK_CUSPARSE( cusparseCreateDnVec(&vecX, cols, GPU_vect, CUDA_R_32F) )
-    // Create dense vector y
-    CHECK_CUSPARSE( cusparseCreateDnVec(&vecY,rows, GPU_COOres, CUDA_R_32F) )
 
-	// allocate an external buffer if needed
-    CHECK_CUSPARSE( cusparseSpMV_bufferSize(
-                                 handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                 &alpha, matA, vecX, &beta, vecY, CUDA_R_32F,
-                                 CUSPARSE_SPMV_ALG_DEFAULT, &bufferSize) )
-    CHECK_CUDA( cudaMalloc(&dBuffer, bufferSize) ) 
+	if (computationType == COO) {
+		computeSpmvCOO(cooRes,rows_array,cols_array,vals_array,ones,nnz,rows);
 
-	//cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
+		cudaMemcpy(GPU_rows,rows_array,GPU_len*sizeof(int),cudaMemcpyHostToDevice);
+	 
+		cudaMemcpy(GPU_cols,cols_array,GPU_len*sizeof(int),cudaMemcpyHostToDevice); 
+		
+		cudaMemcpy(GPU_vals,vals_array,GPU_len*sizeof(float),cudaMemcpyHostToDevice); 
 
-	cudaEvent_t start_coo_sparse, stop_coo_sparse;
-	cudaEventCreate(&start_coo_sparse);	
-	cudaEventCreate(&stop_coo_sparse);
-	cudaEventRecord(start_coo_sparse);
-
-	// execute SpMV
-	 CHECK_CUSPARSE( cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                 &alpha, matA, vecX, &beta, vecY, CUDA_R_32F,
-                                 CUSPARSE_SPMV_ALG_DEFAULT, dBuffer) )
-
+		cudaMemcpy(GPU_vect,ones,cols*sizeof(float),cudaMemcpyHostToDevice); 
 	
-	cudaEventRecord(stop_coo_sparse);
-	cudaEventSynchronize(stop_coo_sparse);
-	cudaEventElapsedTime(&GPU_COO_SPARSE_time,start_coo_sparse,stop_coo_sparse);
-	cudaEventDestroy(start_coo_sparse);
-	cudaEventDestroy(stop_coo_sparse);
-	printf("Time of GPU in COO cusparse (cuda event) : %3.5f ms\n",GPU_COO_SPARSE_time);
-	
+		
+		cudaMemset(GPU_COOres,0,GPU_resLen*sizeof(float));
 
-   
-	
 
-	    // destroy matrix/vector descriptors
-    CHECK_CUSPARSE( cusparseDestroySpMat(matA) )
-    CHECK_CUSPARSE( cusparseDestroyDnVec(vecX) )
-    CHECK_CUSPARSE( cusparseDestroyDnVec(vecY) )
-    CHECK_CUSPARSE( cusparseDestroy(handle) )
+		CHECK_CUSPARSE( cusparseCreate(&handle) )
+				// Create sparse matrix A in COO format
+		CHECK_CUSPARSE( cusparseCreateCoo(&matA, rows, cols, nnz,
+										  GPU_rows, GPU_cols, GPU_vals,
+										  CUSPARSE_INDEX_32I,
+										  CUSPARSE_INDEX_BASE_ZERO, CUDA_R_32F) )      
 
-	cudaDeviceSynchronize(); //waits for the end of GPU
-  cudaMemcpy(cooRes,GPU_COOres , GPU_resLen*sizeof(float),cudaMemcpyDeviceToHost);	
-	
+
+		// Create dense vector X
+		CHECK_CUSPARSE( cusparseCreateDnVec(&vecX, cols, GPU_vect, CUDA_R_32F) )
+		// Create dense vector y
+		CHECK_CUSPARSE( cusparseCreateDnVec(&vecY,rows, GPU_COOres, CUDA_R_32F) )
+
+		// allocate an external buffer if needed
+		CHECK_CUSPARSE( cusparseSpMV_bufferSize(
+									 handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
+									 &alpha, matA, vecX, &beta, vecY, CUDA_R_32F,
+									 CUSPARSE_SPMV_ALG_DEFAULT, &bufferSize) )
+
+		printf("size of buffer : %d \n",bufferSize);
+		printf("nnz = %d, rows = %d, cols = %d, alpha = %f, beta = %f \n", nnz, rows, cols,alpha,beta);
+		if (bufferSize >0) CHECK_CUDA( cudaMalloc(&dBuffer, bufferSize) ) 
+
+
+		cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
+
+		// Allocate the buffer and execute the spMV
+		CHECK_CUSPARSE( cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA, vecX, &beta, vecY, CUDA_R_32F, CUSPARSE_SPMV_ALG_DEFAULT, dBuffer) );
+
+
+
+
+		// cleaning 
+		if (dBuffer != nullptr) CHECK_CUDA( cudaFree(dBuffer) );
+
+			// destroy matrix/vector descriptors
+		CHECK_CUSPARSE( cusparseDestroySpMat(matA) )
+		CHECK_CUSPARSE( cusparseDestroyDnVec(vecX) )
+		CHECK_CUSPARSE( cusparseDestroyDnVec(vecY) )
+		CHECK_CUSPARSE( cusparseDestroy(handle) )
+
+		cudaDeviceSynchronize(); //waits for the end of GPU
+	  cudaMemcpy(cooRes,GPU_COOres , GPU_resLen*sizeof(float),cudaMemcpyDeviceToHost);	
+		
 
  printf("COO res (GPU cusparse) =========== :\n");
     for (int i = rows-10; i < rows; i++) {
-        printf("y[%d] = %f\n", i, cooRes[i]);
+        fprintf(file,"y[%d] = %f\n", i, cooRes[i]);
         }   	
 //====================================================================
-
+	}
 	// spMV CSR  
 	
-	int * row_ptr_array = (int *) calloc(rows+1,sizeof(int));;
+	int * row_ptr_array = (int *) calloc(rows+1,sizeof(int));
+	
 	qsort(cooarray,nnz,sizeof(COOvalue),compare);
 	
 	// re-ordering arrays after sorting
@@ -386,10 +359,70 @@ printf("COO res (GPU) =========== :\n");
 	cudaMalloc(&GPU_row_ptr,(rows+1)*sizeof(int));
 
 	
-	computeSpmvCSR(csrRes,rows_array,cols_array,vals_array,ones,nnz,rows,row_ptr_array);
-	
+	cudaMemcpy(GPU_vect,ones,cols*sizeof(float),cudaMemcpyHostToDevice); 
+	if (computationType == CSR) {
+		CHECK_CUSPARSE( cusparseCreate(&handle) )
+		computeSpmvCSR(csrRes,rows_array,cols_array,vals_array,ones,nnz,rows,row_ptr_array);
+		
+		for (int i = 0; i < rows+1; i++) {
+    		printf("row_ptr[%d] = %d\n", i, row_ptr_array[i]);
+}
+		cudaMemcpy(GPU_row_ptr,row_ptr_array,(rows+1)*sizeof(int),cudaMemcpyHostToDevice);
 
-	cudaMemcpy(GPU_row_ptr,row_ptr_array,(rows+1)*sizeof(int),cudaMemcpyHostToDevice);
+printf("row_ptr last = %d (should be nnz=%d)\n", row_ptr_array[rows], nnz);
+
+for (int i=0;i<5;i++) {
+    printf("row_ptr[%d]=%d\n", i, row_ptr_array[i]);
+    printf("col[%d]=%d val=%f\n", i, cols_array[i], vals_array[i]);
+}
+
+    CHECK_CUSPARSE( cusparseCreateCsr(&matA,rows, cols, nnz,
+                                      GPU_row_ptr, GPU_cols, GPU_vals,
+                                      CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
+                                      CUSPARSE_INDEX_BASE_ZERO, CUDA_R_32F) )
+
+		// Create dense vector X
+		CHECK_CUSPARSE( cusparseCreateDnVec(&vecX, cols, GPU_vect, CUDA_R_32F) )
+		// Create dense vector y
+		CHECK_CUSPARSE( cusparseCreateDnVec(&vecY,rows, GPU_CSRres, CUDA_R_32F) )
+
+
+	// allocate an external buffer if needed
+		CHECK_CUSPARSE( cusparseSpMV_bufferSize(
+									 handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
+									 &alpha, matA, vecX, &beta, vecY, CUDA_R_32F,
+									 CUSPARSE_SPMV_ALG_DEFAULT, &bufferSize) )
+
+		printf("size of buffer : %d \n",bufferSize);
+		printf("nnz = %d, rows = %d, cols = %d, alpha = %f, beta = %f \n", nnz, rows, cols,alpha,beta);
+		if (bufferSize >0) CHECK_CUDA( cudaMalloc(&dBuffer, bufferSize) ) 
+
+		cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
+
+
+		// Allocate the buffer and execute the spMV
+		CHECK_CUSPARSE( cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA, vecX, &beta, vecY, CUDA_R_32F, CUSPARSE_SPMV_ALG_DEFAULT, dBuffer) );
+		// cleaning 
+		if (dBuffer != nullptr) CHECK_CUDA( cudaFree(dBuffer) );
+
+			// destroy matrix/vector descriptors
+		CHECK_CUSPARSE( cusparseDestroySpMat(matA) )
+		CHECK_CUSPARSE( cusparseDestroyDnVec(vecX) )
+		CHECK_CUSPARSE( cusparseDestroyDnVec(vecY) )
+		CHECK_CUSPARSE( cusparseDestroy(handle) )
+
+		cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
+
+	  cudaMemcpy(csrRes,GPU_CSRres , GPU_resLen*sizeof(float),cudaMemcpyDeviceToHost);	
+		
+
+ printf("CSR res (GPU cusparse) =========== :\n");
+    for (int i = 0; i < rows; i++) {
+        fprintf(file,"y[%d] = %f\n", i, csrRes[i]);
+        }   	
+
+
+	}
 
 /*	
 	//numBlocks = (rows + blockSize - 1) / blockSize; // we are working on lines, so the grid size has to be adapted
@@ -543,9 +576,8 @@ printf("COO res (GPU) =========== :\n");
 	cudaFree(GPU_SELLres);
 	cudaFree(GPU_vect);
 
+	fclose(file);
 
-	// device memory deallocation
-    CHECK_CUDA( cudaFree(dBuffer) )
 
 	return 0;
 
