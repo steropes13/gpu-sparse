@@ -18,6 +18,8 @@ make
 
 rm res.txt 
 
+## 1st parameter -> 0 = COO, 1 = CSR, it writes in a "res.txt" file in the current directory
+## 1nd parameter -> sliceSize (optionnal)
 ./bin/spmvCusparse ../del-1/GPU_solution/mtx_matrix/cage15/cage15.mtx 2 1
 
 

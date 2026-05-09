@@ -320,7 +320,7 @@ int main(int argc, char * argv[]) {
 		
 
  printf("COO res (GPU cusparse) =========== :\n");
-    for (int i = rows-10; i < rows; i++) {
+    for (int i = 0; i < rows; i++) {
         fprintf(file,"y[%d] = %f\n", i, cooRes[i]);
         }   	
 //====================================================================
@@ -364,17 +364,9 @@ int main(int argc, char * argv[]) {
 		CHECK_CUSPARSE( cusparseCreate(&handle) )
 		computeSpmvCSR(csrRes,rows_array,cols_array,vals_array,ones,nnz,rows,row_ptr_array);
 		
-		for (int i = 0; i < rows+1; i++) {
-    		printf("row_ptr[%d] = %d\n", i, row_ptr_array[i]);
-}
 		cudaMemcpy(GPU_row_ptr,row_ptr_array,(rows+1)*sizeof(int),cudaMemcpyHostToDevice);
 
-printf("row_ptr last = %d (should be nnz=%d)\n", row_ptr_array[rows], nnz);
 
-for (int i=0;i<5;i++) {
-    printf("row_ptr[%d]=%d\n", i, row_ptr_array[i]);
-    printf("col[%d]=%d val=%f\n", i, cols_array[i], vals_array[i]);
-}
 
     CHECK_CUSPARSE( cusparseCreateCsr(&matA,rows, cols, nnz,
                                       GPU_row_ptr, GPU_cols, GPU_vals,
@@ -393,7 +385,6 @@ for (int i=0;i<5;i++) {
 									 &alpha, matA, vecX, &beta, vecY, CUDA_R_32F,
 									 CUSPARSE_SPMV_ALG_DEFAULT, &bufferSize) )
 
-		printf("size of buffer : %d \n",bufferSize);
 		printf("nnz = %d, rows = %d, cols = %d, alpha = %f, beta = %f \n", nnz, rows, cols,alpha,beta);
 		if (bufferSize >0) CHECK_CUDA( cudaMalloc(&dBuffer, bufferSize) ) 
 
@@ -424,130 +415,6 @@ for (int i=0;i<5;i++) {
 
 	}
 
-/*	
-	//numBlocks = (rows + blockSize - 1) / blockSize; // we are working on lines, so the grid size has to be adapted
-	numBlocks = ((rows*32) + blockSize - 1)/blockSize; // here 1 wrap = 32 threads = 1 row
-	
-	TIMER_START; 	
-	computeSpmvCSRWarpGPU<<<numBlocks,blockSize>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
-	cudaDeviceSynchronize();
-	TIMER_STOP; 
-	GPU_CSR_time = TIMER_ELAPSED;
-	printf("TIME OF csr gpu (host) : %3.5f ms \n",GPU_CSR_time*1000);
-
-	//time measurement in cuda event of CSR with cuda event for GPU 
-	cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
-	cudaMemset(GPU_CSRres,0,rows*sizeof(float));
-	cudaEvent_t start_csr, stop_csr;
-	cudaEventCreate(&start_csr);	
-	cudaEventCreate(&stop_csr);
-	cudaEventRecord(start_csr);
-
-	computeSpmvCSRWarpGPU<<<numBlocks,blockSize>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
-	cudaEventRecord(stop_csr);
-	cudaEventSynchronize(stop_csr);
-	cudaEventElapsedTime(&GPU_CSR_time,start_csr,stop_csr);
-	cudaEventDestroy(start_csr);
-	cudaEventDestroy(stop_csr);
-	printf("Time of GPU in CSR (cuda event) : %3.5f ms\n",GPU_CSR_time);
-	
-
-
-	
-
-
-	cudaDeviceSynchronize();
-  	cudaMemcpy(csrRes,GPU_CSRres , rows*sizeof(float),cudaMemcpyDeviceToHost);	
-
-	printf("CSR res (GPU) =========== :\n");
-    for (int i = 0; i < rows; i++) {
-      // printf("y[%d] = %f\n", i, csrRes[i]);
-        }   	
-
-
-*/
-	
-	//spMV SELL 
-	
-	///void computeSpmvSELL(int nbSlices, COOvalue * cooArray, int rows, int cols) {
-//	float * sellRes = (float*) calloc(rows,sizeof(float));
-
-//	computeSpmvSELL(sliceSize,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array,ones,sellRes);
-
-	  float * sellRes = (float*) calloc(rows,sizeof(float));
-
-    //computeSpmvSELL(sliceSize,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array,ones,sellRes);
-
-    int sizeSellVect = 0;
-    int sizeSliceOffset = 0;
-    int * slice_offsetsSell;
-    int * column_indicesSell;
-    float * values_arraySell;
-    computeSpmvSELLv2(sliceSize,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array,ones,sellRes,&column_indicesSell, &values_arraySell,&slice_offsetsSell,&sizeSellVect,&sizeSliceOffset);
-
-
-
-    printf("sizeSellVect : %d \n",sizeSellVect);
-    printf("sizeSliceOffset : %d \n",sizeSliceOffset);
-
-	// sell GPU 
-	int * GPU_sliceOffset; 
-	cudaMalloc(&GPU_sliceOffset,sizeSliceOffset*sizeof(int)); 
-
-	int * GPU_column_indicesSell; 
-	cudaMalloc(&GPU_column_indicesSell,sizeSellVect*sizeof(int));
-
-	float * GPU_values_arraySell; 
-	cudaMalloc(&GPU_values_arraySell,sizeSellVect*sizeof(float));
-
-	float * GPU_SELLres;
-	cudaMalloc(&GPU_SELLres,rows*sizeof(float));
-
-	cudaMemset(GPU_SELLres,0,rows*sizeof(float));
-
-	cudaMemcpy(GPU_sliceOffset,slice_offsetsSell,sizeSliceOffset*sizeof(int),cudaMemcpyHostToDevice);
-	cudaMemcpy(GPU_column_indicesSell,column_indicesSell,sizeSellVect*sizeof(int),cudaMemcpyHostToDevice);
-	cudaMemcpy(GPU_values_arraySell,values_arraySell,sizeSellVect*sizeof(float),cudaMemcpyHostToDevice);
-	
-	/*	
-	numBlocks = (rows + blockSize - 1) / blockSize; //based on rows, so we change the numBlocks
-
-	TIMER_START;
-	computeSpmvSellGPU<<<numBlocks,blockSize>>>(sliceSize,rows, GPU_sliceOffset,GPU_column_indicesSell,GPU_values_arraySell,GPU_vect, GPU_SELLres);
-	cudaDeviceSynchronize();
-	TIMER_STOP;
-	GPU_SELL_time = TIMER_ELAPSED;
-	printf("Time of GPU on SELL (Host) : %3.5f ms \n",GPU_SELL_time*1000);
-
-	cudaDeviceSynchronize();
-  	cudaMemcpy(sellRes, GPU_SELLres, rows*sizeof(float),cudaMemcpyDeviceToHost);	
-
-	printf("SELL res (GPU) =========== :\n");
-    for (int i = 0; i < rows; i++) {
-        //printf("y[%d] = %f\n", i, sellRes[i]);
-        }   	
-
-	cudaDeviceSynchronize();
-	cudaMemset(GPU_SELLres,0,rows*sizeof(float));
-
-	cudaDeviceSynchronize();
-	cudaEvent_t start_sell, stop_sell;
-	cudaEventCreate(&start_sell);	
-	cudaEventCreate(&stop_sell);
-	cudaEventRecord(start_sell);
-	computeSpmvSellGPU<<<numBlocks,blockSize>>>(sliceSize,rows, GPU_sliceOffset,GPU_column_indicesSell,GPU_values_arraySell,GPU_vect, GPU_SELLres);
-	cudaEventRecord(stop_sell);
-	cudaEventSynchronize(stop_sell);
-	cudaEventElapsedTime(&GPU_SELL_time,start_sell,stop_sell);
-	cudaEventDestroy(start_sell);
-	cudaEventDestroy(stop_sell);
-	printf("Time of GPU in SELL (cuda event) : %f ms\n",GPU_SELL_time);
-	
-	
-
-
-
-*/
 
   
 
@@ -556,13 +423,9 @@ for (int i=0;i<5;i++) {
 	free(rows_array);
 	free(cols_array);
 	free(vals_array);
-	free(sellRes);
 	free(cooRes); 
 	free(csrRes);
 	free(ones);
- 	free(slice_offsetsSell);
-    free(column_indicesSell);
-    free(values_arraySell);
 
 	// GPU FREE 
 	
@@ -573,7 +436,6 @@ for (int i=0;i<5;i++) {
 	cudaFree(GPU_COOres);
 	cudaFree(GPU_row_ptr);
 	cudaFree(GPU_CSRres); 
-	cudaFree(GPU_SELLres);
 	cudaFree(GPU_vect);
 
 	fclose(file);
