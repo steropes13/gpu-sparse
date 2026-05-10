@@ -1,0 +1,150 @@
+#include <stdio.h> 
+#include <stdlib.h>
+#include <cusparse.h>
+#include "../include/cuSparseComputation.cuh"
+
+void computeDiffArrays(float * a , float * b, int n,  char * s1, char * s2) {
+	//COO VS CSR 
+	float max_diff = 0.0;
+	float diff;
+  	const float epsilon = 1e-5f;
+	for (int i = 0; i < n; i++) {
+    	 diff = fabs(a[i] - b[i]);
+    if (diff > epsilon &&  diff > max_diff) max_diff = diff;
+		}
+	printf("Difference max %s vs %s (float) : %e\n",s1,s2, max_diff);
+}
+
+int cuSparseCOOComparison(float * cooRes, float * GPU_COOres, int * GPU_rows,int * GPU_cols,float * GPU_vals,float * GPU_vect, int nnz,int rows,int cols) {
+        cusparseHandle_t     handle = NULL;
+        cusparseSpMatDescr_t matA;
+        cusparseDnVecDescr_t vecX, vecY;
+        void*                dBuffer    = nullptr;
+        size_t               bufferSize = 0;
+        float alpha = 1.0;
+        float beta = 0.0;
+        float GPU_CUSPARSE_time = 0;
+
+		cudaMemset(GPU_COOres,0,rows*sizeof(float));
+		CHECK_CUSPARSE( cusparseCreate(&handle) )
+				// Create sparse matrix A in COO format
+		CHECK_CUSPARSE( cusparseCreateCoo(&matA, rows, cols, nnz,
+										  GPU_rows, GPU_cols, GPU_vals,
+										  CUSPARSE_INDEX_32I,
+										  CUSPARSE_INDEX_BASE_ZERO, CUDA_R_32F) )      
+
+
+		// Create dense vector X
+		CHECK_CUSPARSE( cusparseCreateDnVec(&vecX, cols, GPU_vect, CUDA_R_32F) )
+		// Create dense vector y
+		CHECK_CUSPARSE( cusparseCreateDnVec(&vecY,rows, GPU_COOres, CUDA_R_32F) )
+
+		// allocate an external buffer if needed
+		CHECK_CUSPARSE( cusparseSpMV_bufferSize(
+									 handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
+									 &alpha, matA, vecX, &beta, vecY, CUDA_R_32F,
+									 CUSPARSE_SPMV_ALG_DEFAULT, &bufferSize) )
+
+		printf("size of buffer : %d \n",bufferSize);
+		printf("nnz = %d, rows = %d, cols = %d, alpha = %f, beta = %f \n", nnz, rows, cols,alpha,beta);
+		if (bufferSize >0) CHECK_CUDA( cudaMalloc(&dBuffer, bufferSize) ) 
+
+
+		cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
+
+		// Allocate the buffer and execute the spMV
+		CHECK_CUSPARSE( cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA, vecX, &beta, vecY, CUDA_R_32F, CUSPARSE_SPMV_ALG_DEFAULT, dBuffer) );
+
+
+
+
+		// cleaning 
+		if (dBuffer != nullptr) CHECK_CUDA( cudaFree(dBuffer) );
+
+			// destroy matrix/vector descriptors
+		CHECK_CUSPARSE( cusparseDestroySpMat(matA) )
+		CHECK_CUSPARSE( cusparseDestroyDnVec(vecX) )
+		CHECK_CUSPARSE( cusparseDestroyDnVec(vecY) )
+		CHECK_CUSPARSE( cusparseDestroy(handle) )
+
+		cudaDeviceSynchronize(); //waits for the end of GPU
+		float * cusparseCopy = (float *)  malloc(rows*sizeof(float));
+	  cudaMemcpy(cusparseCopy,GPU_COOres , rows*sizeof(float),cudaMemcpyDeviceToHost);	
+		computeDiffArrays(cusparseCopy, cooRes, rows, "GPU cuspare COO", "CPU COO"); 
+		
+/*
+ printf("COO res (GPU cusparse) =========== :\n");
+    for (int i = 0; i < rows; i++) {
+        fprintf(file,"y[%d] = %f\n", i, cooRes[i]);
+        }   	
+	*/
+//====================================================================
+	
+
+
+		return 0; //by default we return a value because each macro of cusparse return a value 
+		// (CHECK_USPARSE and CHECK_CUDA) 
+
+}
+
+
+int cuSparseCSRComparison(float * csrRes, float * GPU_CSRres, int * GPU_row_ptr,int * GPU_cols,float * GPU_vals,float * GPU_vect, int nnz,int rows,int cols) {
+        cusparseHandle_t     handle = NULL;
+        cusparseSpMatDescr_t matA;
+        cusparseDnVecDescr_t vecX, vecY;
+        void*                dBuffer    = nullptr;
+        size_t               bufferSize = 0;
+        float alpha = 1.0;
+        float beta = 0.0;
+        float GPU_CUSPARSE_time = 0;
+
+		cudaMemset(GPU_CSRres,0,rows*sizeof(float));
+		CHECK_CUSPARSE( cusparseCreate(&handle) )
+
+		CHECK_CUSPARSE( cusparseCreateCsr(&matA,rows, cols, nnz,
+                                      GPU_row_ptr, GPU_cols, GPU_vals,
+                                      CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
+                                      CUSPARSE_INDEX_BASE_ZERO, CUDA_R_32F) )
+
+
+		
+		// Create dense vector X
+		CHECK_CUSPARSE( cusparseCreateDnVec(&vecX, cols, GPU_vect, CUDA_R_32F) )
+		// Create dense vector y
+		CHECK_CUSPARSE( cusparseCreateDnVec(&vecY,rows, GPU_CSRres, CUDA_R_32F) )
+
+
+	// allocate an external buffer if needed
+		CHECK_CUSPARSE( cusparseSpMV_bufferSize(
+									 handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
+									 &alpha, matA, vecX, &beta, vecY, CUDA_R_32F,
+									 CUSPARSE_SPMV_ALG_DEFAULT, &bufferSize) )
+
+		printf("nnz = %d, rows = %d, cols = %d, alpha = %f, beta = %f \n", nnz, rows, cols,alpha,beta);
+		if (bufferSize >0) CHECK_CUDA( cudaMalloc(&dBuffer, bufferSize) ) 
+
+		cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
+
+
+		// Allocate the buffer and execute the spMV
+		CHECK_CUSPARSE( cusparseSpMV(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, matA, vecX, &beta, vecY, CUDA_R_32F, CUSPARSE_SPMV_ALG_DEFAULT, dBuffer) );
+		// cleaning 
+		if (dBuffer != nullptr) CHECK_CUDA( cudaFree(dBuffer) );
+
+			// destroy matrix/vector descriptors
+		CHECK_CUSPARSE( cusparseDestroySpMat(matA) )
+		CHECK_CUSPARSE( cusparseDestroyDnVec(vecX) )
+		CHECK_CUSPARSE( cusparseDestroyDnVec(vecY) )
+		CHECK_CUSPARSE( cusparseDestroy(handle) )
+
+		cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
+
+
+		float * cusparseCopy = (float *) malloc(rows*sizeof(float));
+	  cudaMemcpy(cusparseCopy,GPU_CSRres , rows*sizeof(float),cudaMemcpyDeviceToHost);	
+		computeDiffArrays(cusparseCopy, csrRes, rows, "GPU cuspare CSR", "CPU CSR"); 
+		
+		return 0; //by default we return a value because each macro of cusparse return a value 
+		// (CHECK_USPARSE and CHECK_CUDA) 
+
+}

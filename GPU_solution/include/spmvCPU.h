@@ -12,23 +12,23 @@ extern "C" {
 #define WARMUP 2
 #define NITER 10
 
-double random_double(double min, double max);
+float random_float(float min, float max);
 int random_int(int min, int max);
 int compare(const void * a, const void * b);
 
 typedef struct {
     int col;
     int row;
-    double val;
+    float val;
 } COOvalue;
 
-void computeSpmvCOO(double * res, int * rows_array, int * cols_array, double * vals_array , double * vect, int nnz, int rows);
+void computeSpmvCOO(float * res, int * rows_array, int * cols_array, float * vals_array , float * vect, int nnz, int rows);
 
-void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * vals_array , double * vect, int nnz, int rows, int * row_ptr);
+void computeSpmvCSR(float * res, int * rows_array, int * cols_array, float * vals_array , float * vect, int nnz, int rows, int * row_ptr);
 
-void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr,double * ones,double * res_array);
+void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, float * vals_array, int rows, int cols, int * row_ptr,float * ones,float * res_array);
 
-void computeSpmvSELLv2(int sliceSize,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr,double * ones,double * res_array,int ** column_indices, double ** values_array, int ** slice_offsets, int * sizeVect, int * sizeOffset);
+void computeSpmvSELLv2(int sliceSize,int nnz, int * rows_array,int * cols_array, float * vals_array, int rows, int cols, int * row_ptr,float * ones,float * res_array,int ** column_indices, float ** values_array, int ** slice_offsets, int * sizeVect, int * sizeOffset);
 
 
 #ifdef __cplusplus

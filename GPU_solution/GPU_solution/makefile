@@ -32,7 +32,7 @@ $(OBJ_FOLDER)/%.o: $(SRC_FOLDER)/%.cu
 
 $(BIN_FOLDER)/$(MAIN_BIN): $(MAIN_SRC) $(OBJECTS) $(OBJECTS_CU)
 	@mkdir -p $(BIN_FOLDER)
-	$(CC) $^ -g -o $@ $(LIBS) $(INCLUDES) $(LIB_FLAGS)
+	$(CC) -arch=sm_80 $^ -g -o $@ $(LIBS) $(INCLUDES) $(LIB_FLAGS)
 
 clean:
 	rm -rf $(BIN_FOLDER) $(OBJ_FOLDER) 

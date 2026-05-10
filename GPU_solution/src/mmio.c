@@ -15,13 +15,13 @@
 #include "../include/mmio.h"
 
 int mm_read_unsymmetric_sparse(const char *fname, int *M_, int *N_, int *nz_,
-                double **val_, int **I_, int **J_)
+                float **val_, int **I_, int **J_)
 {
     FILE *f;
     MM_typecode matcode;
     int M, N, nz;
     int i;
-    double *val;
+    float *val;
     int *I, *J;
  
     if ((f = fopen(fname, "r")) == NULL)
@@ -62,19 +62,19 @@ int mm_read_unsymmetric_sparse(const char *fname, int *M_, int *N_, int *nz_,
  
     I = (int *) malloc(nz * sizeof(int));
     J = (int *) malloc(nz * sizeof(int));
-    val = (double *) malloc(nz * sizeof(double));
+    val = (float *) malloc(nz * sizeof(float));
  
     *val_ = val;
     *I_ = I;
     *J_ = J;
  
-    /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
-    /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
+    /* NOTE: when reading in floats, ANSI C requires the use of the "l"  */
+    /*   specifier as in "%f", "%lf", "%le", otherwise errors will occur */
     /*  (ANSI C X3.159-1989, Sec. 4.9.6.2, p. 136 lines 13-15)            */
  
     for (i=0; i<nz; i++)
     {
-        fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
+        fscanf(f, "%d %d %f\n", &I[i], &J[i], &val[i]);
         I[i]--;  /* adjust from 1-based to 0-based */
         J[i]--;
     }
@@ -263,20 +263,20 @@ int mm_write_mtx_array_size(FILE *f, int M, int N)
 /******************************************************************/
 
 int mm_read_mtx_crd_data(FILE *f, int M, int N, int nz, int I[], int J[],
-        double val[], MM_typecode matcode)
+        float val[], MM_typecode matcode)
 {
     int i;
     if (mm_is_complex(matcode))
     {
         for (i=0; i<nz; i++)
-            if (fscanf(f, "%d %d %lg %lg", &I[i], &J[i], &val[2*i], &val[2*i+1])
+            if (fscanf(f, "%d %d %f %f", &I[i], &J[i], &val[2*i], &val[2*i+1])
                 != 4) return MM_PREMATURE_EOF;
     }
     else if (mm_is_real(matcode))
     {
         for (i=0; i<nz; i++)
         {
-            if (fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i])
+            if (fscanf(f, "%d %d %f\n", &I[i], &J[i], &val[i])
                 != 3) return MM_PREMATURE_EOF;
 
         }
@@ -296,16 +296,16 @@ int mm_read_mtx_crd_data(FILE *f, int M, int N, int nz, int I[], int J[],
 }
 
 int mm_read_mtx_crd_entry(FILE *f, int *I, int *J,
-        double *real, double *imag, MM_typecode matcode)
+        float *real, float *imag, MM_typecode matcode)
 {
     if (mm_is_complex(matcode))
     {
-            if (fscanf(f, "%d %d %lg %lg", I, J, real, imag)
+            if (fscanf(f, "%d %d %f %f", I, J, real, imag)
                 != 4) return MM_PREMATURE_EOF;
     }
     else if (mm_is_real(matcode))
     {
-            if (fscanf(f, "%d %d %lg\n", I, J, real)
+            if (fscanf(f, "%d %d %f\n", I, J, real)
                 != 3) return MM_PREMATURE_EOF;
 
     }
@@ -331,7 +331,7 @@ int mm_read_mtx_crd_entry(FILE *f, int *I, int *J,
 ************************************************************************/
 
 int mm_read_mtx_crd(char *fname, int *M, int *N, int *nz, int **I, int **J, 
-        double **val, MM_typecode *matcode)
+        float **val, MM_typecode *matcode)
 {
     int ret_code;
     FILE *f;
@@ -359,14 +359,14 @@ int mm_read_mtx_crd(char *fname, int *M, int *N, int *nz, int **I, int **J,
 
     if (mm_is_complex(*matcode))
     {
-        *val = (double *) malloc(*nz * 2 * sizeof(double));
+        *val = (float *) malloc(*nz * 2 * sizeof(float));
         ret_code = mm_read_mtx_crd_data(f, *M, *N, *nz, *I, *J, *val, 
                 *matcode);
         if (ret_code != 0) return ret_code;
     }
     else if (mm_is_real(*matcode))
     {
-        *val = (double *) malloc(*nz * sizeof(double));
+        *val = (float *) malloc(*nz * sizeof(float));
         ret_code = mm_read_mtx_crd_data(f, *M, *N, *nz, *I, *J, *val, 
                 *matcode);
         if (ret_code != 0) return ret_code;
@@ -397,7 +397,7 @@ int mm_write_banner(FILE *f, MM_typecode matcode)
 }
 
 int mm_write_mtx_crd(char fname[], int M, int N, int nz, int I[], int J[],
-        double val[], MM_typecode matcode)
+        float val[], MM_typecode matcode)
 {
     FILE *f;
     int i;

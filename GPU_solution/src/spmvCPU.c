@@ -1,8 +1,8 @@
 #include "../include/spmvCPU.h"
 #include "../include/my_time_lib.h"
 
-double random_double(double min, double max) {
-    return min + (max - min) * ((double)rand() / RAND_MAX);
+float random_float(float min, float max) {
+    return min + (max - min) * ((float)rand() / RAND_MAX);
 }
 
 int random_int(int min, int max) {
@@ -26,7 +26,7 @@ int compare(const void * a, const void * b) {
 
 }
 
-void computeSpmvCOO(double * res, int * rows_array, int * cols_array, double * vals_array , double * vect, int nnz, int rows) {
+void computeSpmvCOO(float * res, int * rows_array, int * cols_array, float * vals_array , float * vect, int nnz, int rows) {
 	for (int number = 0 ; number < nnz ; number++) {
 		res[rows_array[number]] += vals_array[number]*vect[cols_array[number]];
 	}
@@ -38,7 +38,7 @@ void computeSpmvCOO(double * res, int * rows_array, int * cols_array, double * v
 	}
 
 
-void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * vals_array , double * vect, int nnz, int rows, int * row_ptr) {
+void computeSpmvCSR(float * res, int * rows_array, int * cols_array, float * vals_array , float * vect, int nnz, int rows, int * row_ptr) {
 	int * occurenceArray = calloc(rows, sizeof(int));
 	TIMER_DEF; 
 	float CSR_time;
@@ -89,7 +89,7 @@ void computeSpmvCSR(double * res, int * rows_array, int * cols_array, double * v
 	}
 
 }
-void computeSpmvSELLv2(int sliceSize,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr,double * ones,double * res_array,int ** column_indices, double ** values_array, int ** slice_offsets, int * sizeVect, int * sizeOffset) {
+void computeSpmvSELLv2(int sliceSize,int nnz, int * rows_array,int * cols_array, float * vals_array, int rows, int cols, int * row_ptr,float * ones,float * res_array,int ** column_indices, float ** values_array, int ** slice_offsets, int * sizeVect, int * sizeOffset) {
 	TIMER_DEF;
 	float CPU_time;
     int nbSlices = 0;  
@@ -103,7 +103,7 @@ void computeSpmvSELLv2(int sliceSize,int nnz, int * rows_array,int * cols_array,
      // easier to access to the NNZs per row
 
     int *col_ind = (int *) calloc(nnz, sizeof(int));
-    double *val   = (double *) calloc(nnz, sizeof(double));
+    float *val   = (float *) calloc(nnz, sizeof(float));
     //int *offset = (int *) calloc(rows, sizeof(int));
    // for (int i = 0; i < rows; i++) offset[i] = row_ptr[i];
 
@@ -146,7 +146,7 @@ void computeSpmvSELLv2(int sliceSize,int nnz, int * rows_array,int * cols_array,
     int vectorSize = (*slice_offsets)[nbSlices];
 	//printf("vector size : %d \n",(*slice_offsets)[nbSlices]);
     *column_indices = (int *) calloc(vectorSize, sizeof(int));
-    *values_array = (double *) calloc(vectorSize, sizeof(double));
+    *values_array = (float *) calloc(vectorSize, sizeof(float));
     *sizeVect = vectorSize;
 
 
@@ -264,7 +264,7 @@ void computeSpmvSELLv2(int sliceSize,int nnz, int * rows_array,int * cols_array,
 
 
 
-void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, double * vals_array, int rows, int cols, int * row_ptr,double * ones,double * res_array) {
+void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, float * vals_array, int rows, int cols, int * row_ptr,float * ones,float * res_array) {
 	int nbSlices = 0; 
 	if (sliceSize > rows || sliceSize <= 0) sliceSize = rows; //ELLPACK by default
 	nbSlices = (rows + sliceSize - 1) / sliceSize;
@@ -276,7 +276,7 @@ void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, d
 	// easier to access to the NNZs per row
 
     int *col_ind = (int *) calloc(nnz, sizeof(int));
-    double *val   = (double *) calloc(nnz, sizeof(double));
+    float *val   = (float *) calloc(nnz, sizeof(float));
     //int *offset = (int *) calloc(rows, sizeof(int));
    // for (int i = 0; i < rows; i++) offset[i] = row_ptr[i];
 
@@ -319,7 +319,7 @@ void computeSpmvSELL(int sliceSize,int nnz, int * rows_array,int * cols_array, d
 	int vectorSize = slice_offsets[nbSlices]; 
 	printf("vector size : %d \n",slice_offsets[nbSlices]);
     int *column_indices = (int *) calloc(vectorSize, sizeof(int));
-    double *values_array = (double *) calloc(vectorSize, sizeof(double));
+    float *values_array = (float *) calloc(vectorSize, sizeof(float));
    
 
     // fill SELL 
