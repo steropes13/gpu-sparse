@@ -1,0 +1,52 @@
+rm -rf bin obj 
+nvcc -c src/my_time_lib.c -o obj/my_time_lib.o -lm -lcusparse
+nvcc -c src/mmio.c -o obj/mmio.o -lm -lcusparse
+nvcc -c src/spmvCPU.c -o obj/spmvCPU.o -lm -lcusparse
+nvcc -c src/cuSparseComputation.cu -o obj/cuSparseComputation.o -lm -lcusparse -I../../ -I/opt/shares/cuda/software/CUDA/11.8.0/bin/../include 
+nvcc spmv.cu obj/my_time_lib.o obj/mmio.o obj/spmvCPU.o obj/cuSparseComputation.o -g -o bin/spmv  -I../../ -I/opt/shares/cuda/software/CUDA/11.8.0/bin/../include -lm -lcusparse
+======================================= Device properties ========================================
+CUDA Device Query...
+There are 1 CUDA devices.
+
+CUDA Device #0
+Major revision number:         8
+Minor revision number:         0
+Name:                          NVIDIA A30
+  Memory Clock rate:           1215 Mhz
+  Memory Bus Width:            3072 bit
+  Peak Memory Bandwidth:       933.120 GB/s
+  Multiprocessors:              56
+  Maximum number of threads per multiprocessor:  2048
+  Maximum number of threads per block:           1024
+  Max dimension size of a thread block (x,y,z): (1024, 1024, 64)
+  Max dimension size of a grid size    (x,y,z): (2147483647, 65535, 65535)
+  Total amount of shared memory per block:       49152 bytes
+filename : mtx_matrix/cage15/cage15.mtx 
+does the function work ? 0 
+Silce size : 25
+COO res :
+Time of COO (CPU) : 337.16400 ms 
+Time of GPU in COO (host) : 321.07300 ms
+COO res (GPU) =========== :
+Time of GPU in COO (cuda event) : 6.77171 ms
+time CSR CPU : 337.30798 ms
+TIME OF csr gpu (host) : 5.88600 ms 
+Time of GPU in CSR (cuda event) : 5.76819 ms
+CSR res (GPU) =========== :
+nb slices : 206195
+Time of SELL (CPU) : 467.85800 ms
+sizeSellVect : 103346750 
+sizeSliceOffset : 206196 
+Time of GPU on SELL (Host) : 1.32200 ms 
+SELL res (GPU) =========== :
+Time of GPU in SELL (cuda event) : 1.260544 ms
+Difference max COO CPU vs CSR CPU (float) : 0.000000e+00
+Difference max COO CPU vs SELL CPU (float) : 0.000000e+00
+Difference max COO CPU vs COO GPU (float) : 0.000000e+00
+Difference max CSR CPU vs CSR GPU (float) : 0.000000e+00
+Difference max SELL CPU vs SELL GPU (float) : 0.000000e+00
+size of buffer : 0 
+nnz = 99199551, rows = 5154859, cols = 5154859, alpha = 1.000000, beta = 0.000000 
+Difference max GPU cuspare COO vs CPU COO (float) : 0.000000e+00
+nnz = 99199551, rows = 5154859, cols = 5154859, alpha = 1.000000, beta = 0.000000 
+Difference max GPU cuspare CSR vs CPU CSR (float) : 0.000000e+00
