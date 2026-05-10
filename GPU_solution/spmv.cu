@@ -266,6 +266,10 @@ int main(int argc, char * argv[]) {
 	TIMER_DEF;
 	float GPU_COO_time,GPU_CSR_time,GPU_SELL_time, CPU_COO_time;	
 
+	// for writing some results 
+	FILE * file;
+	file =	fopen("res.txt","w");
+
 
 	int randomRow = 0, randomCol = 0;
 	float randomVal = 0.0;
@@ -513,7 +517,7 @@ printf("COO res (GPU) =========== :\n");
 
 	printf("CSR res (GPU) =========== :\n");
     for (int i = 0; i < rows; i++) {
-      // printf("y[%d] = %f\n", i, csrResGPU_Copy[i]);
+       fprintf(file,"y[%d] = %f\n", i, csrResGPU_Copy[i]);
         }   	
 
 
@@ -632,6 +636,8 @@ printf("COO res (GPU) =========== :\n");
 	cudaFree(GPU_CSRres); 
 	cudaFree(GPU_SELLres);
 	cudaFree(GPU_vect);
+
+	fclose(file);
 
 
 
