@@ -14,6 +14,8 @@ module load CUDA/11.8.0
 
 make clean
 
+rm res.txt
+
 make
 
  ./bin/spmv mtx_matrix/cage15/cage15.mtx 25
