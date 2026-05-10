@@ -16,6 +16,7 @@
 
 
 
+
 // Print device properties
 void printDevProp(cudaDeviceProp devProp)
 {
@@ -68,7 +69,12 @@ void computeSpmvCOOGPU(double * res, int * rows_array, int * cols_array, double 
 
 __global__
 void computeSpmvCSRGPU(double * res, int * rows_array, int * cols_array, double * vals_array , double * vect, int nnz, int rows, int * row_ptr) {
-
+	/*
+	problems without the shared memory + warp 
+	if a line has a lot of nnz -> thread slow 
+	other threads are waiting 
+	divergence important 
+	*/
 		
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -82,10 +88,68 @@ void computeSpmvCSRGPU(double * res, int * rows_array, int * cols_array, double 
 
     }
 
+__global__
+void computeSpmvCSRWarpGPU(double * res, int * rows_array, int * cols_array, double * vals_array , double * vect, int nnz, int rows, int * row_ptr) {
+	/*
+	before, 1 thread -> the whole line 
+	now, 32 threads -> the same line, perfect if the line is long 
+	no need for the shared memory here, warp faster than shared memory 
+	for recent GPU 
+	here we do not re use the vect so it is useless. 
+
+	*/
+
+
+	// global thread id
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // warp id global
+    int warp_id = idx / warpSize;
+
+    // lane id inside warp
+    int lane = threadIdx.x % warpSize;
+	
+	int row = 0; 
+	double sum = 0.0;
+	int j,offset;
+
+    // one warp = one row
+    if (warp_id < rows) {
+
+        row = warp_id;
+
+        sum = 0.0;
+
+        // each lane processes part of row
+        for (j = row_ptr[row] + lane;
+             j < row_ptr[row + 1];
+             j += warpSize)
+        {
+            sum += vals_array[j] * vect[cols_array[j]];
+        }
+
+        // warp reduction
+        for (offset = warpSize / 2;
+             offset > 0;
+             offset /= 2)
+        {
+            sum += __shfl_down_sync(0xffffffff, sum, offset);
+        }
+
+        // lane 0 writes result
+        if (lane == 0) {
+            res[row] = sum;
+        }
+    }
+
+}
+
 
 
 __global__ 
 void computeSpmvSellGPU(int sliceSize,int rows, int * slice_offsets,int * column_indices,double* values_array,double * ones, double * res_array) {
+	
+		
     int row  = threadIdx.x + blockIdx.x * blockDim.x;
     // grid-stride on the lines 
 	int idx = 0, col = 0; 
@@ -111,7 +175,16 @@ void computeSpmvSellGPU(int sliceSize,int rows, int * slice_offsets,int * column
 
 
 
-
+void computeDiffArrays(double * a , double * b, int n,  char * s1, char * s2) {
+	//COO VS CSR 
+	double max_diff = 0.0;
+	double diff;
+	for (int i = 0; i < n; i++) {
+    	 diff = fabs(a[i] - b[i]);
+    if (diff > max_diff) max_diff = diff;
+		}
+	printf("Difference max %s vs %s (double) : %e\n",s1,s2, max_diff);
+}
 
 
 
@@ -170,8 +243,9 @@ int main(int argc, char * argv[]) {
 	
 	int GPU_len = 0;
 	int GPU_resLen = 0;
-	int block_size = 255; 
-	int grid_size = 255; //needs to be changed (train with oth    er values)
+	int blockSize = 255; 
+	int numBlocks = 255; //needs to be changed (train with oth    er values)
+	int sharedMemSize = 0;
 	
 	//TIME MEASUREMENT 
 	TIMER_DEF;
@@ -299,9 +373,9 @@ int main(int argc, char * argv[]) {
 
 
 	//time measurement with cuda event
-	grid_size = (nnz + block_size - 1) / block_size; //we are working on nnz so the grid size has to be adapted to this unit
+	numBlocks = (nnz + blockSize - 1) / blockSize; //we are working on nnz so the grid size has to be adapted to this unit
 	TIMER_START; 
-	computeSpmvCOOGPU<<<grid_size,block_size>>>(GPU_COOres, GPU_rows, GPU_cols, GPU_vals , GPU_vect, GPU_len, GPU_resLen);
+	computeSpmvCOOGPU<<<numBlocks,blockSize>>>(GPU_COOres, GPU_rows, GPU_cols, GPU_vals , GPU_vect, GPU_len, GPU_resLen);
 	cudaDeviceSynchronize();
 	TIMER_STOP;
 	GPU_COO_time = TIMER_ELAPSED; 
@@ -309,11 +383,13 @@ int main(int argc, char * argv[]) {
 	
   
 	cudaDeviceSynchronize(); //waits for the end of GPU
-  cudaMemcpy(cooRes,GPU_COOres , GPU_resLen*sizeof(double),cudaMemcpyDeviceToHost);	
+
+	double * cooResGPU_Copy = (double *) calloc(rows,sizeof(double));  
+  cudaMemcpy(cooResGPU_Copy,GPU_COOres , GPU_resLen*sizeof(double),cudaMemcpyDeviceToHost);	
 
 printf("COO res (GPU) =========== :\n");
     for (int i = 0; i < rows; i++) {
- //       printf("y[%d] = %f\n", i, cooRes[i]);
+    //    printf("y[%d] = %f\n", i, cooResGPU_Copy[i]);
         }   	
 
 
@@ -325,7 +401,7 @@ printf("COO res (GPU) =========== :\n");
 	cudaEventCreate(&start_coo);	
 	cudaEventCreate(&stop_coo);
 	cudaEventRecord(start_coo);
-	computeSpmvCOOGPU<<<grid_size,block_size>>>(GPU_COOres, GPU_rows, GPU_cols, GPU_vals , GPU_vect, GPU_len, GPU_resLen);
+	computeSpmvCOOGPU<<<numBlocks,blockSize>>>(GPU_COOres, GPU_rows, GPU_cols, GPU_vals , GPU_vect, GPU_len, GPU_resLen);
 	cudaEventRecord(stop_coo);
 	cudaEventSynchronize(stop_coo);
 	cudaEventElapsedTime(&GPU_COO_time,start_coo,stop_coo);
@@ -373,14 +449,17 @@ printf("COO res (GPU) =========== :\n");
 
 	
 	computeSpmvCSR(csrRes,rows_array,cols_array,vals_array,ones,nnz,rows,row_ptr_array);
+
 	
 
 	cudaMemcpy(GPU_row_ptr,row_ptr_array,(rows+1)*sizeof(int),cudaMemcpyHostToDevice);
 
 	
-	grid_size = (rows + block_size - 1) / block_size; // we are working on lines, so the grid size has to be adapted
+	numBlocks = (rows + blockSize - 1) / blockSize; // we are working on lines, so the grid size has to be adapted
+//	numBlocks = ((rows*32) + blockSize - 1)/blockSize; // here 1 wrap = 32 threads = 1 row
+	
 	TIMER_START; 	
-	computeSpmvCSRGPU<<<grid_size,block_size>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
+	computeSpmvCSRGPU<<<numBlocks,blockSize>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
 	cudaDeviceSynchronize();
 	TIMER_STOP; 
 	GPU_CSR_time = TIMER_ELAPSED;
@@ -394,7 +473,7 @@ printf("COO res (GPU) =========== :\n");
 	cudaEventCreate(&stop_csr);
 	cudaEventRecord(start_csr);
 
-	computeSpmvCSRGPU<<<grid_size,block_size>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
+	computeSpmvCSRGPU<<<numBlocks,blockSize>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
 	cudaEventRecord(stop_csr);
 	cudaEventSynchronize(stop_csr);
 	cudaEventElapsedTime(&GPU_CSR_time,start_csr,stop_csr);
@@ -408,11 +487,13 @@ printf("COO res (GPU) =========== :\n");
 
 
 	cudaDeviceSynchronize();
-  	cudaMemcpy(csrRes,GPU_CSRres , rows*sizeof(double),cudaMemcpyDeviceToHost);	
+
+	double * csrResGPU_Copy = (double *) calloc(rows,sizeof(double));  
+  	cudaMemcpy(csrResGPU_Copy,GPU_CSRres , rows*sizeof(double),cudaMemcpyDeviceToHost);	
 
 	printf("CSR res (GPU) =========== :\n");
     for (int i = 0; i < rows; i++) {
- //      printf("y[%d] = %f\n", i, csrRes[i]);
+       //printf("y[%d] = %f\n", i, csrResGPU_Copy[i]);
         }   	
 
 
@@ -420,11 +501,6 @@ printf("COO res (GPU) =========== :\n");
 	
 	//spMV SELL 
 	
-	///void computeSpmvSELL(int nbSlices, COOvalue * cooArray, int rows, int cols) {
-//	double * sellRes = (double*) calloc(rows,sizeof(double));
-
-//	computeSpmvSELL(sliceSize,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array,ones,sellRes);
-
 	  double * sellRes = (double*) calloc(rows,sizeof(double));
 
     //computeSpmvSELL(sliceSize,nnz,rows_array,cols_array,vals_array,rows,cols,row_ptr_array,ones,sellRes);
@@ -460,21 +536,23 @@ printf("COO res (GPU) =========== :\n");
 	cudaMemcpy(GPU_column_indicesSell,column_indicesSell,sizeSellVect*sizeof(int),cudaMemcpyHostToDevice);
 	cudaMemcpy(GPU_values_arraySell,values_arraySell,sizeSellVect*sizeof(double),cudaMemcpyHostToDevice);
 	
-	grid_size = (rows + block_size - 1) / block_size; //based on rows, so we change the grid_size
+	numBlocks = (rows + blockSize - 1) / blockSize; //based on rows, so we change the numBlocks
 
 	TIMER_START;
-	computeSpmvSellGPU<<<grid_size,block_size>>>(sliceSize,rows, GPU_sliceOffset,GPU_column_indicesSell,GPU_values_arraySell,GPU_vect, GPU_SELLres);
+	computeSpmvSellGPU<<<numBlocks,blockSize>>>(sliceSize,rows, GPU_sliceOffset,GPU_column_indicesSell,GPU_values_arraySell,GPU_vect, GPU_SELLres);
 	cudaDeviceSynchronize();
 	TIMER_STOP;
 	GPU_SELL_time = TIMER_ELAPSED;
 	printf("Time of GPU on SELL (Host) : %3.5f ms \n",GPU_SELL_time*1000);
 
 	cudaDeviceSynchronize();
-  	cudaMemcpy(sellRes, GPU_SELLres, rows*sizeof(double),cudaMemcpyDeviceToHost);	
+
+	double * sellResGPU_Copy = (double *) calloc(rows,sizeof(double));  
+  	cudaMemcpy(sellResGPU_Copy, GPU_SELLres, rows*sizeof(double),cudaMemcpyDeviceToHost);	
 
 	printf("SELL res (GPU) =========== :\n");
     for (int i = 0; i < rows; i++) {
-    //    printf("y[%d] = %f\n", i, sellRes[i]);
+        //printf("y[%d] = %f\n", i, sellResGPU_Copy[i]);
         }   	
 
 	cudaDeviceSynchronize();
@@ -485,21 +563,25 @@ printf("COO res (GPU) =========== :\n");
 	cudaEventCreate(&start_sell);	
 	cudaEventCreate(&stop_sell);
 	cudaEventRecord(start_sell);
-	computeSpmvSellGPU<<<grid_size,block_size>>>(sliceSize,rows, GPU_sliceOffset,GPU_column_indicesSell,GPU_values_arraySell,GPU_vect, GPU_SELLres);
+	computeSpmvSellGPU<<<numBlocks,blockSize>>>(sliceSize,rows, GPU_sliceOffset,GPU_column_indicesSell,GPU_values_arraySell,GPU_vect, GPU_SELLres);
 	cudaEventRecord(stop_sell);
 	cudaEventSynchronize(stop_sell);
 	cudaEventElapsedTime(&GPU_SELL_time,start_sell,stop_sell);
 	cudaEventDestroy(start_sell);
 	cudaEventDestroy(stop_sell);
-	printf("Time of GPU in SELL (cuda event) : %3.5f ms\n",GPU_SELL_time);
+	printf("Time of GPU in SELL (cuda event) : %f ms\n",GPU_SELL_time);
 	
 	
 
+	//CPU final comparisons =========================
+	computeDiffArrays(cooRes , csrRes, rows, "COO CPU","CSR CPU") ;
+	computeDiffArrays(cooRes , sellRes, rows, "COO CPU","SELL CPU") ;
 
+	//GPU final comparisons =========================
+	computeDiffArrays(cooRes , cooResGPU_Copy, rows, "COO CPU","COO GPU") ;
+	computeDiffArrays(csrRes , csrResGPU_Copy, rows, "CSR CPU","CSR GPU") ;
+	computeDiffArrays(sellRes , sellResGPU_Copy, rows, "SELL CPU","SELL GPU") ;
 
-
-
-  
 
     /* Note, free the memory */
 //	free(row_ptr_array);

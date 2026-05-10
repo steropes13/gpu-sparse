@@ -16,6 +16,7 @@ make clean
 
 make
 
-./bin/spmv mtx_matrix/cage15/cage15.mtx 8
+ ./bin/spmv mtx_matrix/cage15/cage15.mtx 25
 
+## ./bin/spmv mtx_matrix/nvidia.mtx 2
 
