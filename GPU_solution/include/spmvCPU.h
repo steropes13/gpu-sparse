@@ -9,8 +9,6 @@ extern "C" {
 #include <stdlib.h>
 #include <time.h>
 
-#define WARMUP 2
-#define NITER 10
 
 float random_float(float min, float max);
 int random_int(int min, int max);

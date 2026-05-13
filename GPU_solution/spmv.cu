@@ -13,6 +13,9 @@
 #include "include/cuSparseComputation.cuh"
 
 
+//for the time measuring 
+#define NITER 20 
+#define WARMUP 2
 
 
 #define STR(s) #s
@@ -247,7 +250,6 @@ int main(int argc, char * argv[]) {
 	float * vals_array; 
 	int * cols_array;
 	int * rows_array;
-    float timers[NITER];
 
 	// GPU PART (arrays) 
 	int * GPU_cols; 
@@ -271,10 +273,15 @@ int main(int argc, char * argv[]) {
 	//TIME MEASUREMENT 
 	TIMER_DEF;
 	float GPU_COO_time,GPU_CSR_time,GPU_SELL_time, CPU_COO_time;	
+	float timers[NITER];
 
 	// for writing some results 
 	FILE * file;
-	file =	fopen("res.txt","w");
+	FILE * file2; 
+	FILE * file3;
+	file =	fopen("res_COO_GPU.txt","w");
+	file2 =	fopen("res_CSR_GPU.txt","w");
+	file3 =	fopen("res_SELL_GPU.txt","w");
 
 
 	int randomRow = 0, randomCol = 0;
@@ -406,6 +413,7 @@ int main(int argc, char * argv[]) {
 	GPU_COO_time = TIMER_ELAPSED; 
 	printf("Time of GPU in COO (host) : %3.5f ms\n",GPU_COO_time*1000);
 	
+	
   
 	cudaDeviceSynchronize(); //waits for the end of GPU
 
@@ -414,33 +422,38 @@ int main(int argc, char * argv[]) {
 
 printf("COO res (GPU) =========== :\n");
     for (int i = 0; i < rows; i++) {
-    //   fprintf(file,"%f\n", cooResGPU_Copy[i]);
+       fprintf(file,"%f\n", cooResGPU_Copy[i]);
         }   	
 	
 
 	
+	//time measurement with warmup + iterations (see the defined variables above
+	int iter = 0;
+	for (iter = -WARMUP;iter<NITER;iter++) {
 
+		//time measurement with cuda event
+		cudaMemset(GPU_COOres,0,GPU_resLen*sizeof(float));
 
+		cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
+		cudaEvent_t start_coo, stop_coo;
+		cudaEventCreate(&start_coo);	
+		cudaEventCreate(&stop_coo);
+		cudaEventRecord(start_coo);
+		computeSpmvCOOGPU<<<numBlocks,threadsPerBlock>>>(GPU_COOres, GPU_rows, GPU_cols, GPU_vals , GPU_vect, GPU_len, GPU_resLen);
+		cudaEventRecord(stop_coo);
+		cudaEventSynchronize(stop_coo);
+		cudaEventElapsedTime(&GPU_COO_time,start_coo,stop_coo);
+		cudaEventDestroy(start_coo);
+		cudaEventDestroy(stop_coo);
+		//printf("Time of GPU in COO (cuda event) : %3.5f ms\n",GPU_COO_time);
+		if (iter >= 0) timers[iter] = GPU_COO_time;
 
+		}
+		float mean_time_COO = arithmetic_mean(timers,NITER);
+		printf("arithmetic mean time of GPU in COO (cuda event) : %3.5f ms\n", mean_time_COO);
 
-	//time measurement with cuda event
-	cudaMemset(GPU_COOres,0,GPU_resLen*sizeof(float));
-
-	cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
-	cudaEvent_t start_coo, stop_coo;
-	cudaEventCreate(&start_coo);	
-	cudaEventCreate(&stop_coo);
-	cudaEventRecord(start_coo);
-	computeSpmvCOOGPU<<<numBlocks,threadsPerBlock>>>(GPU_COOres, GPU_rows, GPU_cols, GPU_vals , GPU_vect, GPU_len, GPU_resLen);
-	cudaEventRecord(stop_coo);
-	cudaEventSynchronize(stop_coo);
-	cudaEventElapsedTime(&GPU_COO_time,start_coo,stop_coo);
-	cudaEventDestroy(start_coo);
-	cudaEventDestroy(stop_coo);
-	printf("Time of GPU in COO (cuda event) : %3.5f ms\n",GPU_COO_time);
-	
-
-
+		float gflops_coo = (2.0f * nnz) / (mean_time_COO * 1e6f);  // 1e6 = conversion ms to s + GFLOPS
+		printf("GFLOPS : %f \n", gflops_coo);
 
 
 
@@ -498,21 +511,30 @@ printf("COO res (GPU) =========== :\n");
 
 	//time measurement in cuda event of CSR with cuda event for GPU 
 	cudaDeviceSynchronize(); //waits for the end of GPU and avoid last kernel "pollution" 
-	cudaMemset(GPU_CSRres,0,rows*sizeof(float));
-	cudaEvent_t start_csr, stop_csr;
-	cudaEventCreate(&start_csr);	
-	cudaEventCreate(&stop_csr);
-	cudaEventRecord(start_csr);
 
-	computeSpmvCSRWarpGPU<<<numBlocks,threadsPerBlock>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
-	cudaEventRecord(stop_csr);
-	cudaEventSynchronize(stop_csr);
-	cudaEventElapsedTime(&GPU_CSR_time,start_csr,stop_csr);
-	cudaEventDestroy(start_csr);
-	cudaEventDestroy(stop_csr);
-	printf("Time of GPU in CSR (cuda event) : %3.5f ms\n",GPU_CSR_time);
+
+	for (iter = -WARMUP;iter<NITER;iter++) {
+		cudaMemset(GPU_CSRres,0,rows*sizeof(float));
+		cudaEvent_t start_csr, stop_csr;
+		cudaEventCreate(&start_csr);	
+		cudaEventCreate(&stop_csr);
+		cudaEventRecord(start_csr);
+
+		computeSpmvCSRWarpGPU<<<numBlocks,threadsPerBlock>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
+		cudaEventRecord(stop_csr);
+		cudaEventSynchronize(stop_csr);
+		cudaEventElapsedTime(&GPU_CSR_time,start_csr,stop_csr);
+		cudaEventDestroy(start_csr);
+		cudaEventDestroy(stop_csr);
+	//	printf("Time of GPU in CSR (cuda event) : %3.5f ms\n",GPU_CSR_time);
+		if (iter >= 0) timers[iter] = GPU_CSR_time;	
 	
+	}
+	float mean_time_CSR = arithmetic_mean(timers,NITER);
+	printf("arithmetic mean time of GPU in CSR (cuda event) : %3.5f ms\n", mean_time_CSR);
 
+	float gflops_csr = (2.0f * nnz) / (mean_time_CSR * 1e6f);  // 1e6 = conversion ms to s + GFLOPS
+	printf("GFLOPS : %f \n", gflops_csr);
 
 	
 
@@ -524,7 +546,7 @@ printf("COO res (GPU) =========== :\n");
 
 	printf("CSR res (GPU) =========== :\n");
     for (int i = 0; i < rows; i++) {
-       fprintf(file,"%f\n", csrResGPU_Copy[i]);
+       fprintf(file2,"%f\n", csrResGPU_Copy[i]);
         }   	
 
 
@@ -590,33 +612,43 @@ printf("COO res (GPU) =========== :\n");
 	GPU_SELL_time = TIMER_ELAPSED;
 	printf("Time of GPU on SELL (Host) : %3.5f ms \n",GPU_SELL_time*1000);
 
+	
+	cudaMemset(GPU_SELLres,0,rows*sizeof(float));
+
+	for (iter = -WARMUP;iter<NITER;iter++) {
+		cudaDeviceSynchronize();
+		cudaEvent_t start_sell, stop_sell;
+		cudaEventCreate(&start_sell);	
+		cudaEventCreate(&stop_sell);
+		cudaEventRecord(start_sell);
+		computeSpmvSellGPU<<<numBlocks,threadsPerBlock>>>(sliceSize,rows, GPU_sliceOffset,GPU_column_indicesSell,GPU_values_arraySell,GPU_vect, GPU_SELLres);
+		cudaEventRecord(stop_sell);
+		cudaEventSynchronize(stop_sell);
+		cudaEventElapsedTime(&GPU_SELL_time,start_sell,stop_sell);
+		cudaEventDestroy(start_sell);
+		cudaEventDestroy(stop_sell);
+		if (iter >= 0) timers[iter] = GPU_SELL_time;
+		//printf("Time of GPU in SELL (cuda event) : %f ms\n",GPU_SELL_time);
+	}
+	float mean_time_SELL = arithmetic_mean(timers,NITER);
+	printf("arithmetic mean time of GPU in SELL (cuda event) : %3.5f ms\n", mean_time_SELL);
+
+	float gflops_sell = (2.0f * nnz) / (mean_time_SELL * 1e6f);  // 1e6 = conversion ms to s + GFLOPS
+	printf("GFLOPS : %f \n", gflops_sell);
+
 	cudaDeviceSynchronize();
 
 	float * sellResGPU_Copy = (float *) calloc(rows,sizeof(float));  
   	cudaMemcpy(sellResGPU_Copy, GPU_SELLres, rows*sizeof(float),cudaMemcpyDeviceToHost);	
 
+
 	printf("SELL res (GPU) =========== :\n");
     for (int i = 0; i < rows; i++) {
-     //   fprintf(file,"%f\n", sellResGPU_Copy[i]);
+        fprintf(file3,"%f\n", sellResGPU_Copy[i]);
         }   	
 
 	cudaDeviceSynchronize();
-	cudaMemset(GPU_SELLres,0,rows*sizeof(float));
 
-	cudaDeviceSynchronize();
-	cudaEvent_t start_sell, stop_sell;
-	cudaEventCreate(&start_sell);	
-	cudaEventCreate(&stop_sell);
-	cudaEventRecord(start_sell);
-	computeSpmvSellGPU<<<numBlocks,threadsPerBlock>>>(sliceSize,rows, GPU_sliceOffset,GPU_column_indicesSell,GPU_values_arraySell,GPU_vect, GPU_SELLres);
-	cudaEventRecord(stop_sell);
-	cudaEventSynchronize(stop_sell);
-	cudaEventElapsedTime(&GPU_SELL_time,start_sell,stop_sell);
-	cudaEventDestroy(start_sell);
-	cudaEventDestroy(stop_sell);
-	printf("Time of GPU in SELL (cuda event) : %f ms\n",GPU_SELL_time);
-	
-	
 
 	//CPU final comparisons =========================
 	computeDiffArrays(cooRes , csrRes, rows, "COO CPU","CSR CPU") ;
@@ -660,7 +692,9 @@ printf("COO res (GPU) =========== :\n");
 
 	fclose(file);
 
+	fclose(file2);
 
+	fclose(file3);
 
 
 	return 0;

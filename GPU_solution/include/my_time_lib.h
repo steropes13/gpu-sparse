@@ -1,6 +1,10 @@
 #ifndef LAB1_EX2_LIB
 #define LAB1_EX2_LIB
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <sys/time.h>
 #include <math.h>
 
@@ -19,8 +23,12 @@
 
 
 
-double geometric_mean(double *v, int len);
-double arithmetic_mean(double *v, int len);
-double sigma_fn_sol(double *v, double mu, int len);
+float geometric_mean(float *v, int len);
+float arithmetic_mean(float *v, int len);
+float sigma_fn_sol(float *v, float mu, int len);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
