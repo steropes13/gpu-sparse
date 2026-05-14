@@ -688,8 +688,10 @@ printf("COO res (GPU) =========== :\n");
 	cudaFree(GPU_row_ptr);
 	cudaFree(GPU_CSRres); 
 	cudaFree(GPU_SELLres);
+	cudaFree(cooResGPU_Copy);
+	cudaFree(sellResGPU_Copy);
+	cudaFree(csrResGPU_Copy);
 	cudaFree(GPU_vect);
-
 	fclose(file);
 
 	fclose(file2);
