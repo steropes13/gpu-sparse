@@ -18,5 +18,6 @@ make
 
  ./bin/spmv mtx_matrix/cage15/cage15.mtx 25
 
-## ./bin/spmv mtx_matrix/nvidia.mtx 2
+##  ./bin/spmv mtx_matrix/nvidia.mtx 2 42
 
+## ./bin/spmv mtx_matrix/ASIC_680ks/ASIC_680ks.mtx 25 32

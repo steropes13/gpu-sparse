@@ -244,7 +244,7 @@ int main(int argc, char * argv[]) {
 	float min = 0.0, max = 5.0;
 	int occurRow = 0, actuRow = 0, numberOccur = 0;
 	float * ones;
-	char * matrix; 
+	//char * matrix; 
 	COOvalue * cooarray; 
 
 	float * vals_array; 
@@ -287,7 +287,7 @@ int main(int argc, char * argv[]) {
 	int randomRow = 0, randomCol = 0;
 	float randomVal = 0.0;
 	// so it can be a filename (.mtx)
-	if (argc == 3) {
+	if (argc >= 3) {
 		sliceSize = atoi(argv[2]);
 		sprintf(filename, "%s",argv[1]);
 		printf("filename : %s \n",filename);
@@ -320,61 +320,45 @@ int main(int argc, char * argv[]) {
 		
 
 	}
-	//in case the matrix has to be randomized with sizes written by user.
 	else {
-		if (argc < 5) {
-			printf("Usage: %s <rows> <cols> <nnz> <sliceSize> [SEEED] or %s <path-of-file.mtx> <sliceSize>\n", argv[0],argv[0]);
+	//in case the vector has to be randomized with sizes written by user.
+			fprintf(stderr,"Usage: %s <path-of-file.mtx> <sliceSize> <SEEED for vector generation> or %s <path-of-file.mtx> <sliceSize>\n", argv[0],argv[0]);
 			return 1;
 		}
-		rows = atoi(argv[1]);
-		cols = atoi(argv[2]);
-		nnz = atoi(argv[3]);
-		sliceSize = atoi(argv[4]);
 		//the case the user added a fifth parameter 
-		// and it is a number (seed)
-		if (argc == 6) {
-			seed = atoi(argv[5]);
+		// and it is a number (seed) we generate a random vector 
+		ones = (float *) malloc(cols*sizeof(float));
+
+		//in the case we need a random vector
+		if (argc == 4) {
+			FILE * file_vect; 
+			file_vect = fopen("randomVect.txt","w");
+			fprintf(file_vect,"%%%%MatrixMarket matrix coordinate real general\n");
+			fprintf(file_vect,"%d 1 %d\n",cols,cols);
+			seed = atoi(argv[3]);
 			srand(seed);
+			for (int i = 0;i<cols;i++) {
+				randomVal = random_float(min,max); 
+				ones[i] = randomVal;
+				fprintf(file_vect,"    %d 1 %.2f \n", i+1,randomVal); 
+			}
 		}
-		else srand(time(NULL));
+
+		//in the case we don t need a random vector
+		else {
+				for (int i = 0;i<cols;i++) {
+					ones[i] = 1.0;
+
+			}
+		}
+
 //		printf("Value of nnz : %d \n",nnz);
-		
-		matrix = (char*) calloc(rows*cols,sizeof(char)); 
-		cooarray = (COOvalue *) calloc(nnz,sizeof(COOvalue)); 
-		vals_array = (float*) calloc(nnz,sizeof(float));
-		cols_array =  (int *) calloc(nnz,sizeof(int));
-		rows_array = (int *) calloc(nnz,sizeof(int));
 
-
-		for (int i = 0;i<nnz;i++) {
-			randomVal = random_float(min,max); 
-//			printf("Value  %d : %.2f\n", i,randomVal); 
-			do {
-				randomRow = rand() % (rows); 
-				randomCol = rand() % (cols); 
-			} while (matrix[randomRow*cols+randomCol]);
-			matrix[randomRow*cols+randomCol] = 1; 
-			//printf("Row position  : %d\n", randomRow); 
-			//printf("Col position  : %d\n", randomCol); 
-			cooarray[i].row = randomRow; 
-			cooarray[i].col = randomCol;		
-			cooarray[i].val = randomVal;
-
-			cols_array[i] = randomCol; 
-			vals_array[i] = randomVal;
-			rows_array[i] = randomRow;
-
-
-		}
-		free(matrix);
-	}
 
 	
 
 	printf("Silce size : %d\n",sliceSize);
 	//vector we use for the multiplication
-	ones = (float *) malloc(cols*sizeof(float));
-	for (int i=0;i<cols;i++) {ones[i] = 1.0;}
 
 	//c) SpMV COO 
 	float * cooRes = (float*) calloc(rows,sizeof(float));
