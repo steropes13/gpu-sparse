@@ -342,6 +342,8 @@ int main(int argc, char * argv[]) {
 				ones[i] = randomVal;
 				fprintf(file_vect,"    %d 1 %.2f \n", i+1,randomVal); 
 			}
+
+		fclose(file_vect);
 		}
 
 		//in the case we don t need a random vector
@@ -351,7 +353,6 @@ int main(int argc, char * argv[]) {
 
 			}
 		}
-
 //		printf("Value of nnz : %d \n",nnz);
 
 

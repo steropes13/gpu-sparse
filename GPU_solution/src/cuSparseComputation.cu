@@ -3,16 +3,35 @@
 #include <cusparse.h>
 #include "../include/cuSparseComputation.cuh"
 
-void computeDiffArrays(float * a , float * b, int n,  char * s1, char * s2) {
-	//COO VS CSR 
-	float max_diff = 0.0;
-	float diff;
-  	const float epsilon = 1e-5f;
-	for (int i = 0; i < n; i++) {
-    	 diff = fabs(a[i] - b[i]);
-    if (diff > epsilon &&  diff > max_diff) max_diff = diff;
-		}
-	printf("Difference max %s vs %s (float) : %e\n",s1,s2, max_diff);
+
+void computeDiffArrays(float * cpuVect , float * gpuVect, int n, char * s1, char * s2) {
+    float relativeError;
+    int isDiff = 0;
+    const float epsilon = 1e-4f;
+
+    for (int i = 0; i < n; i++) {
+        float diff = fabs(gpuVect[i] - cpuVect[i]);
+        float cpuValueAbs = fabs(cpuVect[i]);
+
+        if (cpuValueAbs < 1e-12f) {
+            relativeError = diff;  // in case the cpuValue is really close to 0  
+								   // we compute the absolute error
+        } else {
+            relativeError = diff / cpuValueAbs; // if the cpuValue is not close to 0 we can compute 
+										  // the relative error 
+        }
+
+        if (relativeError > epsilon) {
+            fprintf(stderr,
+                "ERROR for %s VS %s  at i=%d : CPU=%f GPU=%f relErr=%e\n",
+                s1,s2,i, cpuVect[i], gpuVect[i], relativeError);
+            isDiff = 1;
+            break; // stops the loop after the first error encountered
+        }
+    }
+
+    if (!isDiff)
+        fprintf(stderr, "OK: %s vs %s within tolerance %.1e\n", s1, s2, epsilon);
 }
 
 int cuSparseCOOComparison(float * cooRes, float * GPU_COOres, int * GPU_rows,int * GPU_cols,float * GPU_vals,float * GPU_vect, int nnz,int rows,int cols) {
@@ -191,6 +210,7 @@ int cuSparseCSRComparison(float * csrRes, float * GPU_CSRres, int * GPU_row_ptr,
 
 		float * cusparseCopy = (float *) malloc(rows*sizeof(float));
 	  cudaMemcpy(cusparseCopy,GPU_CSRres , rows*sizeof(float),cudaMemcpyDeviceToHost);	
+		computeDiffArrays(cusparseCopy, csrRes, rows, "GPU cuspare CSR", "CPU CSR"); 
 		computeDiffArrays(cusparseCopy, csrRes, rows, "GPU cuspare CSR", "CPU CSR"); 
 	    for (int i = 0; i < rows; i++) {
         	fprintf(file,"%f\n", cusparseCopy[i]);
