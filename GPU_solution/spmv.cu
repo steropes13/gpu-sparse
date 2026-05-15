@@ -128,21 +128,29 @@ void computeSpmvCSRWarpGPU(float * res, int * rows_array, int * cols_array, floa
 	/*
 	before, 1 thread -> the whole line 
 	now, 32 threads -> the same line, perfect if the line is long 
-	no need for the shared memory here, warp faster than shared memory 
-	for recent GPU 
-	here we do not re use the vect so it is useless. 
-
+	we use the shared memory and warp-per-row 
+	each warp processes exatcly one matrix row
+	partial sums are storedi in shared memory
+	the version avoids __shfl_down_sync and relies on shared memory
+	
+	it stores one float per thread in the block	
 	*/
-
-
+	extern __shared__ float sharedArray[];
+	
 	// global thread id
+
+	int tid = threadIdx.x; //thread index within the block
+	int lane = tid & 31; //lane index inside the warp
     int globalThread = blockIdx.x * blockDim.x + threadIdx.x;
+	
+	//warp index inside the block
+	int warpInBlock = tid >> 5; // local warp in block
 
-    // warp id global
-    int warp_id = globalThread / warpSize; // 1 warp = 1 row
+	int warp_id = (blockIdx.x * (blockDim.x >> 5)) + warpInBlock;
+	//global thread index 
 
-    // lane id inside warp 
-    int lane = threadIdx.x % warpSize; 
+	
+	//each warp for one row 
 	if (warp_id >= rows) return; //case of overlap
 	
 	
@@ -150,27 +158,47 @@ void computeSpmvCSRWarpGPU(float * res, int * rows_array, int * cols_array, floa
 	float sum = 0.0;
 	int j,offset;
 
-
+	//current CSR row inside this warp
 	row = warp_id;
-
+	
+	//Accumulator for partial sum of this thread
 	sum = 0.0f;
-
 	// each lane processes part of row
-	for (j = row_ptr[row] + lane;j < row_ptr[row + 1]; j += warpSize)
+	//each lane processes every 32nd element of the row, starting at its lane offset
+	for (j = row_ptr[row] + lane;j < row_ptr[row + 1]; j += 32)
 	{
 		sum += vals_array[j] * vect[cols_array[j]];
 	}
 
-	// warp reduction
-	for (offset = warpSize / 2;offset > 0;offset /= 2)
-	{
-		sum += __shfl_down_sync(0xffffffff, sum, offset);
-	}
+	//storage in the shared memory (1 value per warp) 
+	sharedArray[warpInBlock * 32 + lane] = sum;
+	
 
-	// lane 0 writes result
-	if (lane == 0) {
-		res[row] = sum;
-	}
+	// Synchronize to ensure all lanes wrote their partial results
+	__syncthreads();
+
+
+	// Tree reduction inside shared memory (warp-sized reduction)
+    if (lane < 16) sharedArray[warpInBlock * 32 + lane] += sharedArray[warpInBlock * 32 + lane + 16];
+    __syncthreads();
+
+    if (lane < 8)  sharedArray[warpInBlock * 32 + lane] += sharedArray[warpInBlock * 32 + lane + 8];
+    __syncthreads();
+
+    if (lane < 4)  sharedArray[warpInBlock * 32 + lane] += sharedArray[warpInBlock * 32 + lane + 4];
+    __syncthreads();
+
+    if (lane < 2)  sharedArray[warpInBlock * 32 + lane] += sharedArray[warpInBlock * 32 + lane + 2];
+    __syncthreads();
+	
+	//lane 0 completes reduction for the final reduction
+    if (lane == 0) {
+        sharedArray[warpInBlock * 32] += sharedArray[warpInBlock * 32 + 1];
+
+		//writes final result for this row
+        res[row] = sharedArray[warpInBlock * 32];
+    }
+
 
 }
 
@@ -485,10 +513,11 @@ printf("COO res (GPU) =========== :\n");
 	
 //	numBlocks = (rows + threadsPerBlock - 1) / threadsPerBlock; // we are working on lines, so the grid size has to be adapted
 	int warpsPerBlock = threadsPerBlock/32;
+	sharedMemSize = threadsPerBlock * sizeof(float);
 	numBlocks = (rows+ warpsPerBlock - 1)/warpsPerBlock; // here 1 wrap = 32 threads = 1 row
 	
 	TIMER_START; 	
-	computeSpmvCSRWarpGPU<<<numBlocks,threadsPerBlock>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
+	computeSpmvCSRWarpGPU<<<numBlocks,threadsPerBlock,sharedMemSize>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
 	cudaDeviceSynchronize();
 	TIMER_STOP; 
 	GPU_CSR_time = TIMER_ELAPSED;
@@ -505,7 +534,7 @@ printf("COO res (GPU) =========== :\n");
 		cudaEventCreate(&stop_csr);
 		cudaEventRecord(start_csr);
 
-		computeSpmvCSRWarpGPU<<<numBlocks,threadsPerBlock>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
+		computeSpmvCSRWarpGPU<<<numBlocks,threadsPerBlock,sharedMemSize>>>(GPU_CSRres,GPU_rows,GPU_cols,GPU_vals,GPU_vect,nnz,rows,GPU_row_ptr);
 		cudaEventRecord(stop_csr);
 		cudaEventSynchronize(stop_csr);
 		cudaEventElapsedTime(&GPU_CSR_time,start_csr,stop_csr);
