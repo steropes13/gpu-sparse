@@ -13,7 +13,9 @@ in this repository you will find files organized into diferent parts :
       - ```spmv.cu``` : the main file that contains the GPU solutions (COO,CSR/CSR WARP, Ellpack, Sliced-Ellpack) it gives you each kernel in res_<kernel_type>.txt files and also the cuSPARSE results to compare with. 
       - ```sbatch.sh``` : necessary for the job loading for Slurm, you can rename it and it will give you some information such as the cpu used, make clean,  load cuda 11.8.0 module, node (edu01/02), GPU properties. Finally it will start the ```./bin/spmv ``` with a matrix. 
       - ```makefile``` : used for the compilation via nvcc.
-      - ```report/``` : all the files used for the report writing in LaTeX (```.tex, .pdf```)
+	  - ```tests/``` : some tests you can find to see the evolutions of computations methods through the time (_you can watch the date for each one_)
+  - ```report/``` : all the files used for the report writing in LaTeX (```.tex, .pdf```)
+	
    
 ## Bonus
 As we can't verify with cuSPARSRE the time execution and as it is not mandatory for this deliverable I immplemented 2 other SpMV methods : ELLpack (ELL) and Sliced-ELLpack (SELL). It is faster than COO,CSR (WARP) in certain cases... 
