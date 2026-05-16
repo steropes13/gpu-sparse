@@ -129,10 +129,12 @@ int mm_read_mtx_crd_data(FILE *f, int M, int N, int nz, int I[], int J[],
 int mm_read_mtx_crd_entry(FILE *f, int *I, int *J, float *real, float *img,
 			MM_typecode matcode);
 
-int mm_read_unsymmetric_sparse(const char *fname, int *M_, int *N_, int *nz_,
-                float **val_, int **I_, int **J_);
 int mm_read_mtx_crd(char *fname, int *M, int *N, int *nz, int **I, int **J, 
         float **val, MM_typecode *matcode); //added by me to be used properly with the name of the file .mtx. 
+
+
+int mm_read_mtx_crd_sym(char *fname,int *M, int *N, int *nz,int **I, int **J,float **val,MM_typecode *matcode);
+ 
 
 #ifdef __cplusplus
 }

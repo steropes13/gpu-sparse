@@ -320,7 +320,7 @@ int main(int argc, char * argv[]) {
 		sprintf(filename, "%s",argv[1]);
 		printf("filename : %s \n",filename);
 		user_matrix = 1;
-		return_val = mm_read_mtx_crd(filename,&rows,&cols,&nnz,&row_ptr_mtx,&cols_array_mtx,&vals_array_mtx,&matcode);
+		return_val = mm_read_mtx_crd_sym(filename,&rows,&cols,&nnz,&row_ptr_mtx,&cols_array_mtx,&vals_array_mtx,&matcode);
 		printf("does the function work ? %d \n",return_val);
 		if (return_val != 0) return 1;
 		cooarray = (COOvalue *) calloc(nnz,sizeof(COOvalue)); 

@@ -509,3 +509,140 @@ char  *mm_typecode_to_str(MM_typecode matcode)
     return mm_strdup(buffer);
 
 }
+
+
+int mm_read_mtx_crd_sym(char *fname, int *M, int *N, int *nz, int **I, int **J,
+        float **val, MM_typecode *matcode) {
+    int ret_code;
+    FILE *f;
+    int *I_temp = NULL, *J_temp = NULL;
+    float *val_temp = NULL;
+    int k, original_nz;
+
+    // Ouverture du fichier
+    if (strcmp(fname, "stdin") == 0)
+        f = stdin;
+    else if ((f = fopen(fname, "r")) == NULL)
+        return MM_COULD_NOT_READ_FILE;
+
+    // Lecture du banner
+    if ((ret_code = mm_read_banner(f, matcode)) != 0) {
+        if (f != stdin) fclose(f);
+        return ret_code;
+    }
+
+    // Vérification du type de matrice
+    if (!(mm_is_valid(*matcode) && mm_is_sparse(*matcode) && mm_is_matrix(*matcode))) {
+        if (f != stdin) fclose(f);
+        return MM_UNSUPPORTED_TYPE;
+    }
+
+    // Lecture de la taille
+    if ((ret_code = mm_read_mtx_crd_size(f, M, N, nz)) != 0) {
+        if (f != stdin) fclose(f);
+        return ret_code;
+    }
+
+    original_nz = *nz;
+
+    // Allocation temporaire pour lire les données
+    I_temp = (int *)malloc(original_nz * sizeof(int));
+    J_temp = (int *)malloc(original_nz * sizeof(int));
+    val_temp = NULL;
+
+    if (mm_is_complex(*matcode)) {
+        val_temp = (float *)malloc(original_nz * 2 * sizeof(float));
+        ret_code = mm_read_mtx_crd_data(f, *M, *N, original_nz, I_temp, J_temp, val_temp, *matcode);
+    }
+    else if (mm_is_real(*matcode)) {
+        val_temp = (float *)malloc(original_nz * sizeof(float));
+        ret_code = mm_read_mtx_crd_data(f, *M, *N, original_nz, I_temp, J_temp, val_temp, *matcode);
+    }
+    else if (mm_is_pattern(*matcode)) {
+        ret_code = mm_read_mtx_crd_data(f, *M, *N, original_nz, I_temp, J_temp, val_temp, *matcode);
+    }
+
+    if (ret_code != 0) {
+        free(I_temp);
+        free(J_temp);
+        free(val_temp);
+        if (f != stdin) fclose(f);
+        return ret_code;
+    }
+
+    if (f != stdin) fclose(f);
+
+    // Vérification si la matrice est symétrique
+    int is_symmetric = mm_is_symmetric(*matcode);
+
+    if (is_symmetric) {
+        // Compter le nombre d'éléments hors diagonale pour allouer la mémoire finale
+        int new_nz = original_nz;
+        for (k = 0; k < original_nz; k++) {
+            if (I_temp[k] != J_temp[k]) {  // Si i != j, on ajoutera le miroir
+                new_nz++;
+            }
+        }
+
+        // Allouer les tableaux finaux avec la nouvelle taille
+        *I = (int *)malloc(new_nz * sizeof(int));
+        *J = (int *)malloc(new_nz * sizeof(int));
+        if (mm_is_real(*matcode) || mm_is_complex(*matcode)) {
+            *val = (float *)malloc(new_nz * (mm_is_complex(*matcode) ? 2 : 1) * sizeof(float));
+        } else {
+            *val = NULL;
+        }
+
+        // Copier les éléments originaux et ajouter les miroirs
+        int index = 0;
+        for (k = 0; k < original_nz; k++) {
+            int i = I_temp[k];
+            int j = J_temp[k];
+
+            // Copier l'élément original
+            (*I)[index] = i;
+            (*J)[index] = j;
+            if (val_temp != NULL) {
+                if (mm_is_complex(*matcode)) {
+                    (*val)[2 * index] = val_temp[2 * k];
+                    (*val)[2 * index + 1] = val_temp[2 * k + 1];
+                } else {
+                    (*val)[index] = val_temp[k];
+                }
+            }
+            index++;
+
+            // Ajouter le miroir si i != j
+            if (i != j) {
+                (*I)[index] = j;
+                (*J)[index] = i;
+                if (val_temp != NULL) {
+                    if (mm_is_complex(*matcode)) {
+                        (*val)[2 * index] = val_temp[2 * k];
+                        (*val)[2 * index + 1] = val_temp[2 * k + 1];
+                    } else {
+                        (*val)[index] = val_temp[k];
+                    }
+                }
+                index++;
+            }
+        }
+
+        *nz = new_nz;  // Mettre à jour le nombre d'éléments non-nuls
+    } else {
+        // Si la matrice n'est pas symétrique, copier simplement les données
+        *I = I_temp;
+        *J = J_temp;
+        *val = val_temp;
+    }
+
+    // Libérer les allocations temporaires si on a fait une copie
+    if (is_symmetric) {
+        free(I_temp);
+        free(J_temp);
+        free(val_temp);
+    }
+
+	return 0;
+}
+

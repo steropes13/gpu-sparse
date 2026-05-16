@@ -8,12 +8,13 @@ void computeDiffArrays(float * cpuVect , float * gpuVect, int n, char * s1, char
     float relativeError;
     int isDiff = 0;
     const float epsilon = 1e-4f;
+	int counter = 0;
 
     for (int i = 0; i < n; i++) {
         float diff = fabs(gpuVect[i] - cpuVect[i]);
         float cpuValueAbs = fabs(cpuVect[i]);
 
-        if (cpuValueAbs < 1e-12f) {
+        if (cpuValueAbs < 1e-12) {
             relativeError = diff;  // in case the cpuValue is really close to 0  
 								   // we compute the absolute error
         } else {
