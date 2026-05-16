@@ -16,13 +16,17 @@ make clean
 
 make
 
-echo -e "\e[32m ============== NAME OF THE HOST (edu01/02) : $(hostname) ============= \e[0m"
+VAL=$(hostname) 
+if [[ $VAL == "edu01" ]] ; then
+		echo -e "\e[32m ============== NAME OF THE HOST (edu01/02) : $VAL ============= \e[0m"
+	else  
+		echo -e "\e[31m ============== NAME OF THE HOST (edu01/02) : $VAL ============= \e[0m"
+fi
 
- ./bin/spmv mtx_matrix/cage15/cage15.mtx 25 42
-
-##  ./bin/spmv mtx_matrix/nvidia.mtx 2 42
-
-## ./bin/spmv mtx_matrix/ASIC_680ks/ASIC_680ks.mtx 25 32 / 
+lscpu ## for each job we list the cpu used
 
 
-##  ./bin/spmv mtx_matrix/F1/F1.mtx 25 32 x
+
+ ./bin/spmv mtx_matrix/ASIC_680ks/ASIC_680ks.mtx 25 32  
+
+
